@@ -142,6 +142,13 @@ The result counts the stock still in the kitchen at what it cost to buy
 waste, it is money that has not been turned back into cash yet. When something
 is left, the scoreboard names it dish by dish.
 
+The run also ends early when the owner is **out of money**: an empty kitchen
+and less in the till than the cheapest dish costs. There is no way forward
+from there — opening is refused for want of food, shopping for want of money —
+so the kitchen closes and the scoreboard says *out of money on day N*. Without
+it the day would stand still for ever and the scoreboard, with it the only way
+to start again, would be out of reach.
+
 *Back to start* throws the finished run away and opens again on day one with
 €100 and an empty kitchen (A6).
 
@@ -263,7 +270,16 @@ a test, except where noted.
     the next day opens with, until it is changed, and it survives a restart of
     the process (A5).
 
-13. **Leftover stock still counts.** Buying **14 Pomodoro** on the last day
+13. **Going broke ends the run.** Selling 14 Pomodoro at 0.01 leaves EUR 2.14
+    and an empty kitchen on day 3. Shopping is refused (the cheapest dish is
+    EUR 7.00) and opening is refused (no food), so the scoreboard appears
+    instead, headed *out of money on day 3*, with the result
+    2.14 + 0.00 − 100.00 = **−EUR 97.86**.
+
+14. **An empty kitchen on its own is not the end.** With money left to
+    restock, the run carries on as normal.
+
+15. **Leftover stock still counts.** Buying **14 Pomodoro** on the last day
     sells 10 and leaves 4. Those 4 are worth **EUR 28.00** at purchase cost,
     the scoreboard names them, and they go into the result:
     final cash + 28.00 − 100.00 (CT R4).

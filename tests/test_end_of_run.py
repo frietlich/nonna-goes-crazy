@@ -132,3 +132,52 @@ def test_an_empty_kitchen_lists_nothing(fresh_run):
 
     assert logic.leftovers() == []
     assert logic.stock_value() == 0.00
+
+
+def test_going_broke_ends_the_run(fresh_run):
+    """Selling below cost long enough leaves a player who can neither shop nor open.
+
+    Without this the day would stand still for ever and the scoreboard -- the
+    only way back to a new game -- could never be reached.
+    """
+    logic.buy_and_open({POMODORO: 14}, {POMODORO: 0.01})   # 98.00 out, 0.10 in
+    logic.buy_and_open({})                                  # sell the last four
+
+    assert logic.kitchen_is_empty() is True
+    assert logic.current_cash() < 7.00                      # cheapest dish
+    assert logic.current_day() == 3                         # two of five played
+
+    assert logic.place_order({POMODORO: 1}) is None         # cannot shop
+    assert logic.open_the_restaurant()["ok"] is False       # cannot open
+
+    assert logic.is_bankrupt() is True
+    assert logic.run_has_ended() is True
+    assert logic.run_is_over() is False                     # not the five days
+
+
+def test_a_solvent_kitchen_is_not_bankrupt(fresh_run):
+    """An empty kitchen on its own is not the end: there is money to restock."""
+    assert logic.kitchen_is_empty() is True
+    assert logic.is_bankrupt() is False
+    assert logic.run_has_ended() is False
+
+
+def test_money_with_no_food_is_not_bankrupt_either(fresh_run):
+    """Enough for the cheapest dish is enough to carry on."""
+    logic.buy_and_open({POMODORO: 13})      # 91.00 out, 10 sold, 3 left over
+    logic.buy_and_open({})                  # sell the last three
+
+    assert logic.kitchen_is_empty() is True
+    assert logic.current_cash() >= 7.00
+    assert logic.is_bankrupt() is False
+
+
+def test_the_scoreboard_says_why_it_ended(fresh_run):
+    logic.buy_and_open({POMODORO: 14}, {POMODORO: 0.01})
+    logic.buy_and_open({})
+
+    result = logic.final_result()
+
+    assert result["bankrupt"] is True
+    assert result["days_played"] == 2
+    assert result["gain"] < 0

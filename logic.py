@@ -108,6 +108,25 @@ def run_is_over():
     return current_day() > TOTAL_DAYS
 
 
+def is_bankrupt():
+    """Nothing in the kitchen, and not enough left to buy even the cheapest dish.
+
+    Without this the run would sit on the same day for ever: opening is refused
+    because the kitchen is empty, shopping is refused because the till is
+    short, and the scoreboard -- with it the only way to start again -- would
+    never be reached.
+    """
+    if run_is_over():
+        return False
+    cheapest = min(dish["cost"] for dish in MENU)
+    return kitchen_is_empty() and current_cash() < cheapest
+
+
+def run_has_ended():
+    """True when there is nothing left to play: five days served, or broke."""
+    return run_is_over() or is_bankrupt()
+
+
 def stock_value():
     """What is left in the kitchen, valued at what it cost to buy (CT R4).
 
@@ -187,6 +206,8 @@ def final_result():
         "cash": cash,
         "stock_value": left,
         "leftovers": leftovers(),
+        "bankrupt": is_bankrupt(),
+        "days_played": current_day() - 1,
         "gain": money(cash + left - STARTING_CASH),
     }
 

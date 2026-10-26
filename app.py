@@ -165,7 +165,10 @@ def paint_the_room():
         .leftover b { color: """ + PINK + """; }
         .foot { border-top: 1px solid rgba(43,46,126,.2); margin-top: .3rem; }
 
-        div[data-testid="stNumberInput"] input { padding: .5rem .6rem; font-size: 1rem; }
+        div[data-testid="stNumberInput"] input {
+            padding: .5rem .6rem; font-size: 1rem;
+            text-align: right;      /* numbers line up with the columns around them */
+        }
         .stButton > button { padding: .95rem 1rem; font-size: 1.05rem; }
         .quiet { margin-top: .8rem; }
         div[data-testid="stMetricValue"] { color: """ + INK + """; }
@@ -398,16 +401,17 @@ def show_plan_screen():
         wanted = logic.demand_for(dish, asking)
         cell(row[4], "<b>" + str(wanted) + "</b>", "num")
 
-        typed = row[5].number_input(
+        # A real zero, not an empty box. An empty number_input has nothing to
+        # count up from, so its - and + do nothing, and Streamlit shows a
+        # "clear the field" cross where the steppers would be.
+        quantities[name] = row[5].number_input(
             name,
             min_value=0,
             step=1,
-            value=None,
-            placeholder="0",
+            value=0,
             key="qty-" + name + "-" + str(round_number),
             label_visibility="collapsed",
         )
-        quantities[name] = typed if typed is not None else 0
         cell(row[6], euro(quantities[name] * dish["cost"]), "num")
 
     st.markdown(
@@ -534,7 +538,11 @@ def show_end_screen():
     st.markdown(
         "<div class='topsign' style='text-align:center'>NONNA GOES CRAZY"
         "<small>PASTA FRESCA ITALIANA</small></div>"
-        "<div class='closed'>FIVE DAYS DONE</div>"
+        + ("<div class='closed'>OUT OF MONEY ON DAY "
+           + str(result["days_played"] + 1) + "</div>"
+           if result["bankrupt"] else
+           "<div class='closed'>FIVE DAYS DONE</div>")
+        +
         "<div class='verdict'>" + ("+" if gain >= 0 else "\u2212") + euro(abs(gain)) + "</div>"
         "<div class='ledger'><b>" + euro(result["cash"]) + "</b> in the till &nbsp;&middot;&nbsp; "
         "<b>" + euro(result["stock_value"]) + "</b> still in the kitchen &nbsp;&middot;&nbsp; "
@@ -619,7 +627,7 @@ def main():
         show_start_screen()
         return
 
-    if logic.run_is_over():
+    if logic.run_has_ended():
         show_end_screen()
         return
 
