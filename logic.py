@@ -19,6 +19,7 @@ TOTAL_DAYS = 5
 
 KITCHEN_IS_EMPTY = "The kitchen is empty. Order some ingredients first."
 RUN_IS_OVER = "Five days are done. The kitchen is closed."
+CANNOT_AFFORD = "That order costs more than the till holds."
 
 
 def money(amount):
@@ -205,6 +206,27 @@ def place_order(quantities):
 
 
 # ---------------------------------------------------------------- trading
+
+def buy_and_open(quantities):
+    """Buy what the owner typed, then serve the day (CT02, CT04).
+
+    One handle instead of two: ordering and opening were never separate
+    decisions. Whatever is bought here is in the kitchen for this very day.
+
+    Nothing happens by halves. If the order cannot be paid for, the day is not
+    served either and not a cent moves -- no stock bought for a day that then
+    never opens.
+    """
+    if run_is_over():
+        return {"ok": False, "error": RUN_IS_OVER}
+
+    if order_total(quantities) > 0:
+        if not can_afford(quantities):
+            return {"ok": False, "error": CANNOT_AFFORD}
+        place_order(quantities)
+
+    return open_the_restaurant()
+
 
 def demand_for(dish, price):
     """How many portions people want at this price (CT R1). No randomness.

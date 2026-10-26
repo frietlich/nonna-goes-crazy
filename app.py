@@ -388,25 +388,25 @@ def show_menu_and_order():
         unsafe_allow_html=True,
     )
 
-    order_column, open_column = st.columns(2)
-    if order_column.button(
-        "Order ingredients",
-        disabled=(total == 0 or not affordable),
-        type="secondary",
+    # One handle, not two: buying and opening were never separate decisions.
+    # The label says what the click will cost, so no money leaves unannounced.
+    label = (
+        "Buy " + euro(total) + " and open the restaurant"
+        if total > 0
+        else "Open the restaurant"
+    )
+    if st.button(
+        label,
+        disabled=not affordable,
+        type="primary",
         use_container_width=True,
     ):
-        logic.place_order(quantities)
-        fresh_boxes()
-        st.rerun()
-
-    if open_column.button(
-        "Open the restaurant", type="primary", use_container_width=True
-    ):
-        result = logic.open_the_restaurant()
+        result = logic.buy_and_open(quantities)
         if result["ok"]:
             # The day is written. Hand over to the cooking screen, which is a
             # page of its own -- see show_cooking_screen.
             st.session_state["cooking"] = result
+            fresh_boxes()
             st.rerun()
         else:
             st.error(result["error"])
