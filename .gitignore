@@ -1,0 +1,9 @@
+# the game database is local state, never the repo's
+*.db
+*.sqlite
+*.sqlite3
+
+__pycache__/
+.venv/
+.pytest_cache/
+.DS_Store
