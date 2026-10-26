@@ -413,22 +413,26 @@ def show_start_screen():
             return
 
         if logic.run_has_ended():
+            # A finished run has nothing left to protect, so it does not ask.
+            # The confirmation is for replacing a run that is still going.
             st.markdown(
                 "<p style='text-align:center'>Your last run is finished.</p>",
                 unsafe_allow_html=True,
             )
-        else:
-            st.markdown(
-                "<p style='text-align:center'>Day "
-                + str(logic.current_day()) + " of " + str(logic.TOTAL_DAYS)
-                + " &nbsp;&middot;&nbsp; " + euro(logic.current_cash())
-                + " in the till.</p>",
-                unsafe_allow_html=True,
-            )
-            if st.button("Continue run", use_container_width=True, type="primary"):
-                st.session_state["playing"] = True
-                st.rerun()
+            if st.button("Start new game", use_container_width=True, type="primary"):
+                start_a_new_game()
+            return
 
+        st.markdown(
+            "<p style='text-align:center'>Day "
+            + str(logic.current_day()) + " of " + str(logic.TOTAL_DAYS)
+            + " &nbsp;&middot;&nbsp; " + euro(logic.current_cash())
+            + " in the till.</p>",
+            unsafe_allow_html=True,
+        )
+        if st.button("Continue run", use_container_width=True, type="primary"):
+            st.session_state["playing"] = True
+            st.rerun()
         if st.button("Start new game", use_container_width=True):
             st.session_state["confirming"] = True
             st.rerun()
