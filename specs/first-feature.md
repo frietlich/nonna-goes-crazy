@@ -116,7 +116,7 @@ carries forward (CT R2); it is inventory, not waste.
 |---|---|---|
 | Empty kitchen, empty order | grey hint | *The kitchen is empty — order something to open today.* |
 | Order costs more than the cash | red total, button off | *EUR 112.00 — you only have EUR 100.00.* |
-| *Open the restaurant* with an empty kitchen | red error, after the click | *Nothing in the kitchen. Order some ingredients first.* |
+| *Open the restaurant* with an empty kitchen | red error, after the click | *The kitchen is empty. Order some ingredients first.* |
 | Stock in the kitchen, empty order | nothing at all | — |
 
 An empty order on a full kitchen is a perfectly good choice and is not
@@ -165,7 +165,7 @@ a test, except where noted.
    is active. The boundary sits between them.
 
 3. **The refused action.** With an empty kitchen, pressing *Open the
-   restaurant* shows *"Nothing in the kitchen."* Cash, stock, day and history
+   restaurant* shows *"The kitchen is empty."* Cash, stock, day and history
    are **exactly as they were** — nothing is written.
 
 4. **A trading day reconciles.** From EUR 30.00 with 10 Pomodoro at its
