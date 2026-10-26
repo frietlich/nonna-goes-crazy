@@ -16,6 +16,7 @@ logic.start_up()
 INK = "#2B2E7E"       # the blue of the sign
 PINK = "#D7446B"      # the accent
 CREAM = "#F6EEDC"     # the wall behind the tiles
+ALARM = "#A3182B"     # for things that went wrong; pink is for things you press
 
 # How long the kitchen takes. Long enough to feel like a service, short enough
 # that nobody goes and makes a coffee.
@@ -83,6 +84,9 @@ def paint_the_room():
         /* Streamlit's own bar sits on top of the page and swallows the sign.
            A game does not need it. */
         [data-testid="stHeader"] { display: none; }
+        /* "Press Enter to apply" under every box. The value applies on its
+           own, so the hint only crowds the row. */
+        [data-testid="InputInstructions"] { display: none !important; }
         [data-testid="stToolbar"] { display: none; }
 
         /* Streamlit's default padding alone is taller than a phone. */
@@ -113,11 +117,17 @@ def paint_the_room():
         .dot.done { background: """ + INK + """; opacity: 1; }
         .dot.now  { background: """ + PINK + """; border-color: """ + PINK + """; opacity: 1; }
         .dish-pic {
-            width: 34px; height: 34px; image-rendering: pixelated;
+            width: 30px; height: 30px; image-rendering: pixelated;
             margin-right: .6rem; vertical-align: middle; flex-shrink: 0;
         }
-        .td.name.with-pic { flex-direction: row; align-items: center; }
-        .td.name.with-pic .names { display: flex; flex-direction: column; }
+        /* Exactly the height of a number box, or the row sits 7px out of line. */
+        .td.name.with-pic {
+            height: 40px; flex-direction: row; align-items: center;
+        }
+        .td.name.with-pic .names {
+            display: flex; flex-direction: column; justify-content: center;
+            line-height: 1.15;
+        }
 
         .head { font-family: Georgia, serif; font-size: 1.5rem; color: """ + INK + """;
                 border-bottom: 2px solid """ + PINK + """; padding-bottom: .5rem;
@@ -132,9 +142,9 @@ def paint_the_room():
            rows, which is what left the boxes sitting 8px above their text. */
         .td {
             min-height: 40px; display: flex; align-items: center;
-            font-size: 1.05rem; color: """ + INK + """;
+            font-size: 1.1rem; color: """ + INK + """;
         }
-        .td.name { font-family: Georgia, serif; font-size: 1.15rem; }
+        .td.name { font-family: Georgia, serif; font-size: 1.22rem; }
         .td.name { flex-direction: column; align-items: flex-start; justify-content: center; }
         .ref {
             font-family: -apple-system, system-ui, sans-serif;
@@ -142,7 +152,7 @@ def paint_the_room():
             color: """ + PINK + """; opacity: .85; margin-top: .1rem;
         }
         .rule-note {
-            font-size: .82rem; color: """ + INK + """; opacity: .8;
+            font-size: .98rem; color: """ + INK + """; opacity: .9;
             border-left: 3px solid """ + PINK + """; padding: .35rem .7rem;
             margin: 1rem 0 .2rem 0;
         }
@@ -151,14 +161,15 @@ def paint_the_room():
         .total { font-family: Georgia, serif; font-size: 1.5rem; color: """ + INK + """;
                  text-align: right; padding: 1.2rem 0 .4rem 0;
                  border-top: 1px solid rgba(43,46,126,.18); margin-top: .6rem; }
-        .warn { color: """ + PINK + """ !important; }
+        .warn { color: """ + ALARM + """ !important; }
         .quiet { font-size: .8rem; opacity: .75; }
 
         .closed {
             text-align: center; font-family: Georgia, serif;
-            letter-spacing: .3em; font-size: .8rem;
-            color: """ + PINK + """; margin-top: .4rem;
+            letter-spacing: .22em; font-size: 1.45rem;
+            color: """ + PINK + """; margin-top: .7rem;
         }
+        .closed.bad { color: """ + ALARM + """; letter-spacing: .14em; font-size: 1.8rem; }
         .verdict {
             text-align: center; font-family: Georgia, serif;
             font-size: 3.4rem; color: """ + INK + """;
@@ -185,6 +196,24 @@ def paint_the_room():
             text-align: right;      /* numbers line up with the columns around them */
         }
         .stButton > button { padding: .95rem 1rem; font-size: 1.05rem; }
+
+        /* The way out should be findable, not loud. Streamlit gives a keyed
+           widget its own class, so this reaches that one button only. */
+        .st-key-exit-to-menu { margin-top: -2.9rem; }
+        .st-key-exit-to-menu button {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: """ + INK + """ !important;
+            opacity: .5;
+            font-size: .78rem !important;
+            padding: .2rem .2rem !important;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+        .st-key-exit-to-menu button:hover {
+            opacity: 1; color: """ + PINK + """ !important;
+        }
         .quiet { margin-top: .8rem; }
         div[data-testid="stMetricValue"] { color: """ + INK + """; }
         </style>
@@ -330,10 +359,11 @@ def show_cooking_screen():
 
 def show_back_to_menu():
     """A quiet way out, bottom right. The run stays exactly where it is."""
-    st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
-    spacer, corner = st.columns([4, 1])
-    if corner.button("Back to menu", use_container_width=True):
+    spacer, corner = st.columns([6, 1])
+    if corner.button("Back to menu", key="exit-to-menu", use_container_width=True):
         st.session_state["playing"] = False
+        # Otherwise walking out of a report and back in shows it all over again.
+        st.session_state.pop("report", None)
         st.rerun()
 
 
@@ -510,12 +540,13 @@ def show_plan_screen():
         unsafe_allow_html=True,
     )
 
-    label = (
-        "Buy " + euro(total) + " and open the restaurant"
-        if total > 0
-        else "Open the restaurant"
-    )
-    if st.button(label, disabled=not affordable, type="primary", use_container_width=True):
+    left_gap, middle, right_gap = st.columns([2, 2, 2])
+    if middle.button(
+        "Open the restaurant",
+        disabled=not affordable,
+        type="primary",
+        use_container_width=True,
+    ):
         result = logic.buy_and_open(quantities, prices)
         if result["ok"]:
             st.session_state["cooking"] = result
@@ -621,8 +652,9 @@ def show_end_screen():
     st.markdown(
         "<div class='topsign' style='text-align:center'>NONNA GOES CRAZY"
         "<small>PASTA FRESCA ITALIANA</small></div>"
-        + ("<div class='closed'>OUT OF MONEY ON DAY "
-           + str(result["days_played"] + 1) + "</div>"
+        + ("<div class='closed bad'>OUT OF MONEY</div>"
+           "<div class='ledger'>on day " + str(result["days_played"] + 1)
+           + " of " + str(logic.TOTAL_DAYS) + "</div>"
            if result["bankrupt"] else
            "<div class='closed'>FIVE DAYS DONE</div>")
         +
