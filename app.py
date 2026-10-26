@@ -93,7 +93,7 @@ def paint_the_room():
 
         /* Streamlit's default padding alone is taller than a phone. */
         [data-testid="stMainBlockContainer"] {
-            padding-top: 4.2rem; padding-bottom: 3rem;
+            padding-top: 2.2rem; padding-bottom: 1.6rem;
             padding-left: 3.5rem; padding-right: 3.5rem;
             max-width: 100%;
         }
@@ -168,9 +168,16 @@ def paint_the_room():
         .st-key-menu-panel {
             background: rgba(255,252,245,.93);
             border: 1px solid rgba(43,46,126,.16);
+            border-top: 3px solid """ + PINK + """;
             border-radius: 12px;
-            padding: 1.1rem 1.7rem 1.5rem 1.7rem;
+            padding: 1.2rem 1.7rem 1.4rem 1.7rem;
             box-shadow: 0 4px 18px rgba(43,46,126,.11);
+        }
+        .brand { display: flex; align-items: center; gap: 1.3rem; }
+        .brand .plaque { line-height: 0; flex-shrink: 0; }
+        .brand-title {
+            font-family: Georgia, serif; font-size: 1.9rem;
+            color: """ + INK + """; line-height: 1.1;
         }
         .rule-note {
             font-size: .98rem; color: """ + INK + """; opacity: .9;
@@ -525,13 +532,16 @@ def show_header():
     """The sign and the two numbers that matter, on one line."""
     sign, day, cash = st.columns([4, 1, 1.4], vertical_alignment="center")
     source = logo_source()
-    sign.markdown(
-        ("<div class='plaque' style='text-align:left'>"
-         "<img src='" + source + "' alt='Nonna Goes Crazy' "
+    mark = (
+        ("<div class='plaque'><img src='" + source + "' alt='Nonna Goes Crazy' "
          "style='width:124px;height:124px'></div>")
         if source else
         ("<div class='topsign'>NONNA GOES CRAZY"
-         "<small>PASTA FRESCA ITALIANA</small></div>"),
+         "<small>PASTA FRESCA ITALIANA</small></div>")
+    )
+    sign.markdown(
+        "<div class='brand'>" + mark
+        + "<div class='brand-title'>Tonight&rsquo;s menu</div></div>",
         unsafe_allow_html=True,
     )
     today = logic.current_day()
@@ -566,9 +576,11 @@ def show_plan_screen():
 
 
 def show_menu_table():
-    """The menu itself, on its card: prices, demand, quantities and the total."""
-    st.markdown("<div class='head'>Tonight&rsquo;s menu</div>", unsafe_allow_html=True)
+    """The menu itself, on its card: prices, demand, quantities and the total.
 
+    The heading sits up in the header beside the logo, so the card can start
+    with its own rule rather than repeating a title.
+    """
     widths = [2.9, 0.85, 0.95, 1.5, 1.05, 1.35, 1.15]
     titles = ["Dish", "Stock", "Cost", "Your price", "Demand", "Order", "Spend"]
     header = st.columns(widths)
