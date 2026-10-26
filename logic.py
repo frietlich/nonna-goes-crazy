@@ -5,13 +5,18 @@ saved game: they have to be the same on every machine, and the database file
 never leaves the laptop it was made on.
 """
 
+from decimal import Decimal, ROUND_HALF_UP
+
 import db
 
 # The menu. Fixed, and the same everywhere. See docs/product-brief.md.
 MENU = [
-    {"name": "Iconic Pomodoro", "cost": 7.00, "price": 11.90},
-    {"name": "Drunken Arrabbiata", "cost": 9.00, "price": 12.90},
-    {"name": "Carbobora", "cost": 11.00, "price": 14.00},
+    {"name": "Iconic Pomodoro", "cost": 7.00, "price": 11.90,
+     "picture": "iconic-pomodoro.png"},
+    {"name": "Drunken Arrabbiata", "cost": 9.00, "price": 12.90,
+     "picture": "drunken-arrabbiata.png"},
+    {"name": "Carbobora", "cost": 11.00, "price": 14.00,
+     "picture": "carbobora.png"},
 ]
 
 STARTING_CASH = 100.00
@@ -30,13 +35,17 @@ DEMAND_RULE = (
 
 
 def money(amount):
-    """Round to the cent (CT R3).
+    """Round to the cent, the way money is rounded: half goes up (CT R3).
 
     Every money result goes through here. Rounding once at the end would not be
     enough: plain floating point drifts as the days add up, and cash would show
     135.39999999999998 on day three.
+
+    Python's own round() rounds a half to the nearest even number, so 2.675
+    would become 2.67. Nobody hands back 2.67 for two euros sixty-seven and a
+    half, so Decimal does it properly instead.
     """
-    return round(amount, 2)
+    return float(Decimal(str(amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 def dish_names():
@@ -120,6 +129,20 @@ def is_bankrupt():
         return False
     cheapest = min(dish["cost"] for dish in MENU)
     return kitchen_is_empty() and current_cash() < cheapest
+
+
+def run_has_started():
+    """True once anything has happened: a day played, food bought, money spent.
+
+    A brand new run has none of those, so the menu can offer "start" rather
+    than "continue" and never ask to confirm deleting nothing.
+    """
+    return (
+        current_day() > 1
+        or not kitchen_is_empty()
+        or current_cash() != STARTING_CASH
+        or len(history()) > 0
+    )
 
 
 def run_has_ended():
@@ -313,6 +336,8 @@ def open_the_restaurant():
     prices = current_prices()
     lines = {}
     revenue_total = 0.0
+    cogs_total = 0.0
+    sold_total = 0
 
     for dish in MENU:
         name = dish["name"]
@@ -333,6 +358,8 @@ def open_the_restaurant():
         }
         stock[name] = stock_before - sold
         revenue_total = money(revenue_total + revenue)
+        cogs_total = money(cogs_total + cogs)
+        sold_total = sold_total + sold
 
     cash_after = money(current_cash() + revenue_total)
     db.save_day(day, lines, cash_after, revenue_total, stock)
@@ -341,6 +368,11 @@ def open_the_restaurant():
         "ok": True,
         "day": day,
         "dishes": lines,
+        # CT04 asks for the day in total as well as dish by dish.
+        "sold": sold_total,
+        "revenue": revenue_total,
+        "cogs": cogs_total,
+        "profit": money(revenue_total - cogs_total),
         "cash_after": cash_after,
         "cash_delta": revenue_total,
     }

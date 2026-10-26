@@ -131,6 +131,30 @@ Demand is decided by the price the owner asked, nothing else: there is no
 randomness in this release (CT R1). Charge the reference price and the room is
 full at 10; charge more than twice it and nobody comes.
 
+### The day's report (CT04)
+
+After the service, a page of its own shows what the day did: for each dish the
+price charged, what was in the kitchen, how many went, the revenue, the cost of
+the goods sold and the profit — **and the same four in total** underneath
+(CT04). Anything that stayed in the kitchen is named below it.
+
+### Finding your way around (CT01)
+
+The header carries the day, the cash, and **five dots** that fill as the run
+goes on, so the five-day frame is visible from the first screen rather than
+arriving as a surprise at the end.
+
+Every screen has a quiet *Back to menu* in the bottom right. It changes
+nothing: the run is in the database, and walking away from it loses nothing.
+
+The menu knows three states. Nothing played yet gives *Start game*. A run under
+way gives *Continue run* beside *Start new game*. A finished run gives only
+*Start new game*.
+
+**Replacing a run asks first** (CT01, A6): *This will delete your current run.*
+Cancelling keeps it exactly as it was. Leaving for the menu does not ask,
+because nothing is lost by it.
+
 ### The end of the run (CT05)
 
 After the fifth day has been served the kitchen closes: **neither buying nor
@@ -252,34 +276,43 @@ a test, except where noted.
    script anyway, so only stopping the process proves the numbers came from the
    database.
 
-9. **The run ends after five days.** Once the fifth day is served the day
+9. **The day's report adds up.** Ordering 10 Pomodoro and 3 Arrabbiata on a
+   fresh run (EUR 97.00, which fits) sells 13 portions for **EUR 157.70
+   revenue, EUR 97.00 cost of goods and EUR 60.70 profit**, and the totals
+   equal the dish rows added together (CT04).
+
+10. **Replacing a run asks first.** *Start new game* on a run under way shows
+   *This will delete your current run.* Cancelling leaves the day, the till
+   and the history exactly as they were (A6).
+
+11. **The run ends after five days.** Once the fifth day is served the day
    counter stands at 6, **buying and opening are both refused**, and the
    scoreboard appears instead of the kitchen (CT05).
 
-10. **The price decides the room.** On a fresh run, buying 10 Pomodoro and
-    asking **15.00** instead of the 11.90 reference sells **5, not 10**:
-    EUR 75.00 revenue, EUR 35.00 cost of goods sold, EUR 40.00 profit,
-    EUR 105.00 cash and **5 portions left** (CT R1, CT R2). Asking **24.00**,
-    above twice the reference, sells **nothing at all** and the food stays.
+12. **The price decides the room.** On a fresh run, buying 10 Pomodoro and
+   asking **15.00** instead of the 11.90 reference sells **5, not 10**:
+   EUR 75.00 revenue, EUR 35.00 cost of goods sold, EUR 40.00 profit,
+   EUR 105.00 cash and **5 portions left** (CT R1, CT R2). Asking **24.00**,
+   above twice the reference, sells **nothing at all** and the food stays.
 
-11. **A price of zero or less is refused.** Nothing is written: the prices
-    stay as they were, no stock is bought and no day is served (A2). One wrong
-    price among three stops all three.
+13. **A price of zero or less is refused.** Nothing is written: the prices
+   stay as they were, no stock is bought and no day is served (A2). One wrong
+   price among three stops all three.
 
-12. **Yesterday's price is still there today.** A price set on day one is what
-    the next day opens with, until it is changed, and it survives a restart of
-    the process (A5).
+14. **Yesterday's price is still there today.** A price set on day one is what
+   the next day opens with, until it is changed, and it survives a restart of
+   the process (A5).
 
-13. **Going broke ends the run.** Selling 14 Pomodoro at 0.01 leaves EUR 2.14
-    and an empty kitchen on day 3. Shopping is refused (the cheapest dish is
-    EUR 7.00) and opening is refused (no food), so the scoreboard appears
-    instead, headed *out of money on day 3*, with the result
-    2.14 + 0.00 − 100.00 = **−EUR 97.86**.
+15. **Going broke ends the run.** Selling 14 Pomodoro at 0.01 leaves EUR 2.14
+   and an empty kitchen on day 3. Shopping is refused (the cheapest dish is
+   EUR 7.00) and opening is refused (no food), so the scoreboard appears
+   instead, headed *out of money on day 3*, with the result
+   2.14 + 0.00 − 100.00 = **−EUR 97.86**.
 
-14. **An empty kitchen on its own is not the end.** With money left to
-    restock, the run carries on as normal.
+16. **An empty kitchen on its own is not the end.** With money left to
+   restock, the run carries on as normal.
 
-15. **Leftover stock still counts.** Buying **14 Pomodoro** on the last day
-    sells 10 and leaves 4. Those 4 are worth **EUR 28.00** at purchase cost,
-    the scoreboard names them, and they go into the result:
-    final cash + 28.00 − 100.00 (CT R4).
+17. **Leftover stock still counts.** Buying **14 Pomodoro** on the last day
+   sells 10 and leaves 4. Those 4 are worth **EUR 28.00** at purchase cost,
+   the scoreboard names them, and they go into the result:
+   final cash + 28.00 − 100.00 (CT R4).

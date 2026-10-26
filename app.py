@@ -1,6 +1,8 @@
 """Nonna Goes Crazy: the screens. Start it with:  uv run streamlit run app.py"""
 
+import base64
 import time
+from pathlib import Path
 
 import streamlit as st
 
@@ -103,6 +105,19 @@ def paint_the_room():
         .stat { text-align: right; line-height: 1.1; }
         .stat span { font-size: .7rem; letter-spacing: .14em; color: """ + PINK + """; }
         .stat b { display: block; font-family: Georgia, serif; font-size: 2.1rem; color: """ + INK + """; }
+        .dots { display: flex; gap: .34rem; justify-content: flex-end; margin-top: .5rem; }
+        .dot {
+            width: 13px; height: 13px; border-radius: 50%;
+            border: 2px solid """ + INK + """; opacity: .3;
+        }
+        .dot.done { background: """ + INK + """; opacity: 1; }
+        .dot.now  { background: """ + PINK + """; border-color: """ + PINK + """; opacity: 1; }
+        .dish-pic {
+            width: 34px; height: 34px; image-rendering: pixelated;
+            margin-right: .6rem; vertical-align: middle; flex-shrink: 0;
+        }
+        .td.name.with-pic { flex-direction: row; align-items: center; }
+        .td.name.with-pic .names { display: flex; flex-direction: column; }
 
         .head { font-family: Georgia, serif; font-size: 1.5rem; color: """ + INK + """;
                 border-bottom: 2px solid """ + PINK + """; padding-bottom: .5rem;
@@ -176,6 +191,17 @@ def paint_the_room():
         """,
         unsafe_allow_html=True,
     )
+
+
+@st.cache_data
+def dish_picture(filename):
+    """Read a dish picture once and hand back something an <img> tag can use.
+
+    The pictures are small enough to travel inside the page, which keeps the
+    rows as one piece of markup instead of a column of their own.
+    """
+    data = (Path(__file__).parent / "assets" / filename).read_bytes()
+    return "data:image/png;base64," + base64.b64encode(data).decode()
 
 
 def euro(amount):
@@ -302,33 +328,79 @@ def show_cooking_screen():
     st.rerun()
 
 
+def show_back_to_menu():
+    """A quiet way out, bottom right. The run stays exactly where it is."""
+    st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
+    spacer, corner = st.columns([4, 1])
+    if corner.button("Back to menu", use_container_width=True):
+        st.session_state["playing"] = False
+        st.rerun()
+
+
+def start_a_new_game():
+    logic.start_new_run()
+    st.session_state["playing"] = True
+    st.session_state.pop("report", None)
+    st.session_state.pop("confirming", None)
+    fresh_boxes()
+    st.rerun()
+
+
 def show_start_screen():
-    """The sign over the door. One way in."""
+    """The sign over the door, and the way in.
+
+    Three states: nothing played yet, a run waiting to be picked up, or a run
+    that has finished. Only replacing a run asks first (CT01, A6) -- leaving
+    one alone and walking out of the menu loses nothing, so it does not.
+    """
     show_sign()
 
     left, middle, right = st.columns([1, 2, 1])
     with middle:
-        if logic.current_day() == 1 and logic.kitchen_is_empty():
+        if st.session_state.get("confirming"):
+            st.markdown(
+                "<p style='text-align:center'>This will delete your current run.</p>",
+                unsafe_allow_html=True,
+            )
+            yes, no = st.columns(2)
+            if yes.button("Start new game", use_container_width=True, type="primary"):
+                start_a_new_game()
+            if no.button("Cancel", use_container_width=True):
+                st.session_state.pop("confirming", None)
+                st.rerun()
+            return
+
+        if not logic.run_has_started():
             st.markdown(
                 "<p style='text-align:center'>Five days. "
                 + euro(logic.STARTING_CASH)
                 + " to start. Buy well.</p>",
                 unsafe_allow_html=True,
             )
-            label = "Start Game"
+            if st.button("Start game", use_container_width=True, type="primary"):
+                st.session_state["playing"] = True
+                st.rerun()
+            return
+
+        if logic.run_has_ended():
+            st.markdown(
+                "<p style='text-align:center'>Your last run is finished.</p>",
+                unsafe_allow_html=True,
+            )
         else:
             st.markdown(
                 "<p style='text-align:center'>Day "
-                + str(logic.current_day())
-                + " · "
-                + euro(logic.current_cash())
+                + str(logic.current_day()) + " of " + str(logic.TOTAL_DAYS)
+                + " &nbsp;&middot;&nbsp; " + euro(logic.current_cash())
                 + " in the till.</p>",
                 unsafe_allow_html=True,
             )
-            label = "Back to the kitchen"
+            if st.button("Continue run", use_container_width=True, type="primary"):
+                st.session_state["playing"] = True
+                st.rerun()
 
-        if st.button(label, use_container_width=True, type="primary"):
-            st.session_state["playing"] = True
+        if st.button("Start new game", use_container_width=True):
+            st.session_state["confirming"] = True
             st.rerun()
 
 
@@ -340,8 +412,14 @@ def show_header():
         "<small>PASTA FRESCA ITALIANA</small></div>",
         unsafe_allow_html=True,
     )
+    today = logic.current_day()
+    dots = "".join(
+        "<i class='dot" + (" done" if number < today else (" now" if number == today else "")) + "'></i>"
+        for number in range(1, logic.TOTAL_DAYS + 1)
+    )
     day.markdown(
-        "<div class='stat'><span>DAY</span><b>" + str(logic.current_day()) + "</b></div>",
+        "<div class='stat'><span>DAY " + str(today) + " OF " + str(logic.TOTAL_DAYS)
+        + "</span><div class='dots'>" + dots + "</div></div>",
         unsafe_allow_html=True,
     )
     cash.markdown(
@@ -379,8 +457,10 @@ def show_plan_screen():
         row = st.columns(widths)
 
         row[0].markdown(
-            "<div class='td name'>" + name
-            + "<span class='ref'>reference " + euro(dish["price"]) + "</span></div>",
+            "<div class='td name with-pic'>"
+            "<img class='dish-pic' src='" + dish_picture(dish["picture"]) + "' alt=''>"
+            "<span class='names'>" + name
+            + "<span class='ref'>reference " + euro(dish["price"]) + "</span></span></div>",
             unsafe_allow_html=True,
         )
         cell(row[1], str(stock[name]), "num")
@@ -450,59 +530,60 @@ def show_plan_screen():
             unsafe_allow_html=True,
         )
 
+    show_back_to_menu()
+
 
 def show_report_screen():
-    """How the day went, and how it compares with the ones before it."""
+    """How the day went: sold, taken, spent and kept, dish by dish and in total.
+
+    CT04 asks for all four, by product and in total, so the table runs the
+    full width. The comparison with earlier days lives on the scoreboard,
+    where it belongs; repeating it here said the same thing twice.
+    """
     day = st.session_state["report"]
-    gain = day["cash_delta"]
 
     st.markdown(
         "<div class='topsign' style='text-align:center'>NONNA GOES CRAZY"
         "<small>PASTA FRESCA ITALIANA</small></div>"
-        "<div class='closed'>DAY " + str(day["day"]) + " IS DONE</div>"
-        "<div class='verdict'>+" + euro(gain) + "</div>"
+        "<div class='closed'>DAY " + str(day["day"]) + " OF "
+        + str(logic.TOTAL_DAYS) + " IS DONE</div>"
+        "<div class='verdict'>+" + euro(day["cash_delta"]) + "</div>"
         "<div class='ledger'><b>" + euro(day["cash_after"]) + "</b> in the till</div>",
         unsafe_allow_html=True,
     )
 
-    left, right = st.columns([3, 2.6], gap="large")
+    widths = [3.2, 1.1, 0.8, 0.9, 1.3, 1.3, 1.3]
+    titles = ["Dish", "Price", "Had", "Sold", "Revenue", "Cost of goods", "Profit"]
+    for column, title in zip(st.columns(widths), titles):
+        column.markdown(
+            "<div class='th" + ("" if title == "Dish" else " num") + "'>" + title + "</div>",
+            unsafe_allow_html=True,
+        )
 
-    with left:
-        st.markdown("<div class='head'>Tonight</div>", unsafe_allow_html=True)
-        widths = [2.4, 1.1, 0.8, 0.8, 1.2]
-        for column, title in zip(
-            st.columns(widths), ["Dish", "Price", "Had", "Sold", "Profit"]
-        ):
-            column.markdown(
-                "<div class='th" + ("" if title == "Dish" else " num") + "'>" + title + "</div>",
-                unsafe_allow_html=True,
-            )
-        for dish in logic.MENU:
-            line = day["dishes"][dish["name"]]
-            row = st.columns(widths)
-            cell(row[0], dish["name"], "name")
-            cell(row[1], euro(line["price"]), "num")
-            cell(row[2], str(line["stock_before"]), "num")
-            cell(row[3], str(line["sold"]), "num")
-            cell(row[4], euro(line["profit"]), "num")
+    for dish in logic.MENU:
+        line = day["dishes"][dish["name"]]
+        row = st.columns(widths)
+        row[0].markdown(
+            "<div class='td name with-pic'>"
+            "<img class='dish-pic' src='" + dish_picture(dish["picture"]) + "' alt=''>"
+            "<span class='names'>" + dish["name"] + "</span></div>",
+            unsafe_allow_html=True,
+        )
+        cell(row[1], euro(line["price"]), "num")
+        cell(row[2], str(line["stock_before"]), "num")
+        cell(row[3], str(line["sold"]), "num")
+        cell(row[4], euro(line["revenue"]), "num")
+        cell(row[5], euro(line["cogs"]), "num")
+        cell(row[6], euro(line["profit"]), "num")
 
-    with right:
-        st.markdown("<div class='head'>Compared</div>", unsafe_allow_html=True)
-        widths = [0.7, 0.9, 1.2, 1.2, 1.3]
-        for column, title in zip(
-            st.columns(widths), ["Day", "Sold", "Revenue", "Profit", "Cash"]
-        ):
-            column.markdown(
-                "<div class='th" + ("" if title == "Day" else " num") + "'>" + title + "</div>",
-                unsafe_allow_html=True,
-            )
-        for past in logic.final_result()["days"]:
-            row = st.columns(widths)
-            cell(row[0], str(past["day"]))
-            cell(row[1], str(past["sold"]), "num")
-            cell(row[2], euro(past["revenue"]), "num")
-            cell(row[3], euro(past["profit"]), "num")
-            cell(row[4], euro(past["cash_after"]), "num")
+    total = st.columns(widths)
+    cell(total[0], "<b>Total</b>", "name foot")
+    cell(total[1], "", "num foot")
+    cell(total[2], "", "num foot")
+    cell(total[3], "<b>" + str(day["sold"]) + "</b>", "num foot")
+    cell(total[4], "<b>" + euro(day["revenue"]) + "</b>", "num foot")
+    cell(total[5], "<b>" + euro(day["cogs"]) + "</b>", "num foot")
+    cell(total[6], "<b>" + euro(day["profit"]) + "</b>", "num foot")
 
     left_over = logic.leftovers()
     if left_over:
@@ -524,6 +605,8 @@ def show_report_screen():
     ):
         st.session_state.pop("report", None)
         st.rerun()
+
+    show_back_to_menu()
 
 
 def show_end_screen():
@@ -607,11 +690,9 @@ def show_end_screen():
 
     st.markdown("<div style='height:.8rem'></div>", unsafe_allow_html=True)
     spacer_left, middle, spacer_right = st.columns([2, 2, 2])
-    if middle.button("Back to start", type="primary", use_container_width=True):
-        logic.start_new_run()
+    if middle.button("Back to menu", type="primary", use_container_width=True):
         st.session_state["playing"] = False
         st.session_state.pop("report", None)
-        fresh_boxes()
         st.rerun()
 
 
