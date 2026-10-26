@@ -119,12 +119,12 @@ def paint_the_room():
         .dot.done { background: """ + INK + """; opacity: 1; }
         .dot.now  { background: """ + PINK + """; border-color: """ + PINK + """; opacity: 1; }
         .dish-pic {
-            width: 30px; height: 30px; image-rendering: pixelated;
-            margin-right: .6rem; vertical-align: middle; flex-shrink: 0;
+            width: 44px; height: 44px; image-rendering: pixelated;
+            margin-right: .8rem; vertical-align: middle; flex-shrink: 0;
         }
         /* Exactly the height of a number box, or the row sits 7px out of line. */
         .td.name.with-pic {
-            height: 40px; flex-direction: row; align-items: center;
+            height: 48px; flex-direction: row; align-items: center;
             /* .td.name centres on the main axis, which is what you want in a
                column. Turning the row sideways made that centre horizontally,
                so each picture started wherever its name left room. */
@@ -150,12 +150,27 @@ def paint_the_room():
             min-height: 40px; display: flex; align-items: center;
             font-size: 1.1rem; color: """ + INK + """;
         }
-        .td.name { font-family: Georgia, serif; font-size: 1.22rem; }
+        .td.name { font-family: Georgia, serif; font-size: 1.42rem; }
         .td.name { flex-direction: column; align-items: flex-start; justify-content: center; }
         .ref {
             font-family: -apple-system, system-ui, sans-serif;
-            font-size: .62rem; letter-spacing: .1em; text-transform: uppercase;
+            font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
             color: """ + PINK + """; opacity: .85; margin-top: .1rem;
+        }
+        /* The wall is lovely but it swallows a table. This lifts the menu
+           off it, like a card laid on the counter. */
+        .plaque { text-align: center; line-height: 0; }
+        .plaque img {
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(43,46,126,.28);
+            image-rendering: auto;
+        }
+        .st-key-menu-panel {
+            background: rgba(255,252,245,.93);
+            border: 1px solid rgba(43,46,126,.16);
+            border-radius: 12px;
+            padding: 1.1rem 1.7rem 1.5rem 1.7rem;
+            box-shadow: 0 4px 18px rgba(43,46,126,.11);
         }
         .rule-note {
             font-size: .98rem; color: """ + INK + """; opacity: .9;
@@ -203,19 +218,38 @@ def paint_the_room():
         }
         .stButton > button { padding: .95rem 1rem; font-size: 1.05rem; }
 
+        /* The one button that matters. Ink blue on pink was too close a pair
+           to read at a glance, so it is white, and it looks like a sign. */
+        .stButton > button[kind="primary"] {
+            font-family: Georgia, "Times New Roman", serif;
+            font-weight: 700;
+            font-size: 1.35rem;
+            letter-spacing: .13em;
+            text-transform: uppercase;
+            color: #FFF8EC !important;
+            padding: 1.05rem 1rem;
+            border: none;
+            box-shadow: 0 3px 0 rgba(43,46,126,.22);
+        }
+        .stButton > button[kind="primary"]:hover {
+            color: #FFFFFF !important;
+            box-shadow: 0 2px 0 rgba(43,46,126,.3);
+            transform: translateY(1px);
+        }
+
         /* The way out should be findable, not loud. Streamlit gives a keyed
            widget its own class, so this reaches that one button only. */
         .st-key-exit-to-menu { margin-top: -2.9rem; }
         .st-key-exit-to-menu button {
-            background: transparent !important;
-            border: none !important;
+            background: rgba(255,252,246,.75) !important;
+            border: 1px solid rgba(43,46,126,.25) !important;
             box-shadow: none !important;
             color: """ + INK + """ !important;
-            opacity: .5;
-            font-size: .78rem !important;
-            padding: .2rem .2rem !important;
-            text-decoration: underline;
-            text-underline-offset: 3px;
+            opacity: .9;
+            font-size: .92rem !important;
+            font-weight: 600;
+            padding: .45rem .4rem !important;
+            letter-spacing: .04em;
         }
         .st-key-exit-to-menu button:hover {
             opacity: 1; color: """ + PINK + """ !important;
@@ -239,6 +273,42 @@ def dish_picture(filename):
     return "data:image/png;base64," + base64.b64encode(data).decode()
 
 
+LOGO_FILE = "logo.png"
+
+
+@st.cache_data
+def logo_source():
+    """The logo as something an <img> can use, or None if it is not there yet.
+
+    Kept optional on purpose: the app has to run from a fresh clone, and a
+    missing picture should fall back to the lettering rather than break a
+    screen.
+    """
+    path = Path(__file__).parent / "assets" / LOGO_FILE
+    if not path.exists():
+        return None
+    return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode()
+
+
+def sign_html(height, small_caption=True):
+    """The name over the door, at whatever size the screen needs.
+
+    The logo is white on a dark square, so it is treated as a plaque hanging
+    on the wall rather than stripped out -- the lettering would be unreadable
+    on cream.
+    """
+    source = logo_source()
+    if source:
+        return (
+            "<div class='plaque'>"
+            "<img src='" + source + "' alt='Nonna Goes Crazy' "
+            "style='width:" + str(height) + "px;height:" + str(height) + "px'>"
+            "</div>"
+        )
+    caption = "<small>PASTA FRESCA ITALIANA</small>" if small_caption else ""
+    return "<div class='topsign' style='text-align:center'>NONNA GOES CRAZY" + caption + "</div>"
+
+
 def euro(amount):
     """Money on screen always has two decimals: 8.20 and not 8.2."""
     return "€" + format(amount, ".2f")
@@ -256,7 +326,16 @@ def fresh_boxes():
 # ---------------------------------------------------------------- screens
 
 def show_sign():
-    """The sign over the door. Used by the start screen and by the kitchen."""
+    """The sign over the door. Used by the start screen."""
+    source = logo_source()
+    if source:
+        st.markdown(
+            "<div class='plaque' style='margin:2.6rem 0 1.4rem 0'>"
+            "<img src='" + source + "' alt='Nonna Goes Crazy' "
+            "style='width:300px;height:300px'></div>",
+            unsafe_allow_html=True,
+        )
+        return
     st.markdown(
         """
         <div class="sign">
@@ -338,12 +417,15 @@ def show_cooking_screen():
         </style>
 
         <div class="curtain">
-            <div style="text-align:center">
-                <div class="big">NONNA</div>
-                <div class="big">GOES</div>
-                <div class="big">CRAZY</div>
-                <div class="small">PASTA FRESCA ITALIANA</div>
-            </div>
+            """ + (
+                "<div class='plaque'><img src='" + (logo_source() or "") + "' "
+                "alt='Nonna Goes Crazy' style='width:230px;height:230px'></div>"
+                if logo_source() else
+                '<div style="text-align:center">'
+                '<div class="big">NONNA</div><div class="big">GOES</div>'
+                '<div class="big">CRAZY</div>'
+                '<div class="small">PASTA FRESCA ITALIANA</div></div>'
+            ) + """
             <div class="stage">""" + lines + """</div>
             <div class="bar"><div class="fill"></div></div>
         </div>
@@ -442,9 +524,14 @@ def show_start_screen():
 def show_header():
     """The sign and the two numbers that matter, on one line."""
     sign, day, cash = st.columns([4, 1, 1.4], vertical_alignment="center")
+    source = logo_source()
     sign.markdown(
-        "<div class='topsign'>NONNA GOES CRAZY"
-        "<small>PASTA FRESCA ITALIANA</small></div>",
+        ("<div class='plaque' style='text-align:left'>"
+         "<img src='" + source + "' alt='Nonna Goes Crazy' "
+         "style='width:86px;height:86px'></div>")
+        if source else
+        ("<div class='topsign'>NONNA GOES CRAZY"
+         "<small>PASTA FRESCA ITALIANA</small></div>"),
         unsafe_allow_html=True,
     )
     today = logic.current_day()
@@ -470,6 +557,16 @@ def cell(column, text, extra=""):
 def show_plan_screen():
     """Plan the day: what to charge, what to buy, and what the room will want."""
     show_header()
+
+    panel = st.container(key="menu-panel")
+    with panel:
+        quantities, prices, total, affordable = show_menu_table()
+
+    show_the_doors(quantities, prices, total, affordable)
+
+
+def show_menu_table():
+    """The menu itself, on its card: prices, demand, quantities and the total."""
     st.markdown("<div class='head'>Tonight&rsquo;s menu</div>", unsafe_allow_html=True)
 
     widths = [2.9, 0.85, 0.95, 1.5, 1.05, 1.35, 1.15]
@@ -545,6 +642,11 @@ def show_plan_screen():
         unsafe_allow_html=True,
     )
 
+    return quantities, prices, total, affordable
+
+
+def show_the_doors(quantities, prices, total, affordable):
+    """The button, below the card rather than on it."""
     left_gap, middle, right_gap = st.columns([2, 2, 2])
     if middle.button(
         "Open the restaurant",
@@ -579,9 +681,8 @@ def show_report_screen():
     day = st.session_state["report"]
 
     st.markdown(
-        "<div class='topsign' style='text-align:center'>NONNA GOES CRAZY"
-        "<small>PASTA FRESCA ITALIANA</small></div>"
-        "<div class='closed'>DAY " + str(day["day"]) + " OF "
+        sign_html(150)
+        + "<div class='closed'>DAY " + str(day["day"]) + " OF "
         + str(logic.TOTAL_DAYS) + " IS DONE</div>"
         "<div class='verdict'>+" + euro(day["cash_delta"]) + "</div>"
         "<div class='ledger'><b>" + euro(day["cash_after"]) + "</b> in the till</div>",
@@ -655,8 +756,7 @@ def show_end_screen():
     gain = result["gain"]
 
     st.markdown(
-        "<div class='topsign' style='text-align:center'>NONNA GOES CRAZY"
-        "<small>PASTA FRESCA ITALIANA</small></div>"
+        sign_html(150)
         + ("<div class='closed bad'>OUT OF MONEY</div>"
            "<div class='ledger'>on day " + str(result["days_played"] + 1)
            + " of " + str(logic.TOTAL_DAYS) + "</div>"
