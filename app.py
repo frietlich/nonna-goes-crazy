@@ -229,14 +229,22 @@ def paint_the_room():
            to read at a glance, so it is white, and it looks like a sign. */
         .stButton > button[kind="primary"] {
             font-family: Georgia, "Times New Roman", serif;
-            font-weight: 700;
-            font-size: 1.35rem;
-            letter-spacing: .13em;
+            /* Georgia has nothing heavier than bold, so the letters are
+               thickened by stroking them in their own colour. */
+            font-weight: 900;
+            -webkit-text-stroke: .7px currentColor;
+            font-size: 1.42rem;
+            letter-spacing: .09em;
             text-transform: uppercase;
             color: #FFF8EC !important;
             padding: 1.05rem 1rem;
             border: none;
             box-shadow: 0 3px 0 rgba(43,46,126,.22);
+        }
+        .stButton > button[kind="primary"] div,
+        .stButton > button[kind="primary"] p {
+            font-weight: 900;
+            -webkit-text-stroke: .7px currentColor;
         }
         .stButton > button[kind="primary"]:hover {
             color: #FFFFFF !important;
