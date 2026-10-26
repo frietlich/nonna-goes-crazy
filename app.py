@@ -117,7 +117,14 @@ def paint_the_room():
             border: 2px solid """ + INK + """; opacity: .3;
         }
         .dot.done { background: """ + INK + """; opacity: 1; }
-        .dot.now  { background: """ + PINK + """; border-color: """ + PINK + """; opacity: 1; }
+        .dot.now  {
+            background: """ + PINK + """; border-color: """ + PINK + """; opacity: 1;
+            animation: breathe 2.4s ease-in-out infinite;
+        }
+        @keyframes breathe {
+            0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(215,68,107,.45); }
+            50%      { transform: scale(1.18); box-shadow: 0 0 0 5px rgba(215,68,107,0); }
+        }
         .dish-pic {
             width: 44px; height: 44px; image-rendering: pixelated;
             margin-right: .8rem; vertical-align: middle; flex-shrink: 0;
@@ -185,6 +192,16 @@ def paint_the_room():
             margin: 1rem 0 .2rem 0;
         }
         .td, .th { white-space: nowrap; }
+
+        /* Each row arrives a beat after the one above it, so the menu is laid
+           out in front of you rather than appearing all at once. */
+        @keyframes arrive {
+            from { opacity: 0; transform: translateY(9px); }
+            to   { opacity: 1; transform: none; }
+        }
+        .arrive-1 { animation: arrive .42s ease-out .02s both; }
+        .arrive-2 { animation: arrive .42s ease-out .10s both; }
+        .arrive-3 { animation: arrive .42s ease-out .18s both; }
         .num { justify-content: flex-end; text-align: right; }
         .total { font-family: Georgia, serif; font-size: 1.5rem; color: """ + INK + """;
                  text-align: right; padding: 1.2rem 0 .4rem 0;
@@ -208,6 +225,21 @@ def paint_the_room():
             color: """ + INK + """; opacity: .85; margin-bottom: .6rem;
         }
         .ledger b { color: """ + PINK + """; }
+
+        /* CSS cannot count on its own; a registered property can be animated
+           and read back by a counter. The euros climb, the cents stay put --
+           counter() has no way to show a decimal. */
+        @property --tally {
+            syntax: "<integer>"; initial-value: 0; inherits: false;
+        }
+        .tally { counter-reset: tally var(--tally); }
+        .tally i { font-style: normal; }
+        .tally i::after { content: counter(tally); }
+        .tally.run { animation: tally 1.4s cubic-bezier(.2,.8,.3,1) forwards; }
+        @keyframes tally {
+            from { --tally: var(--from); }
+            to   { --tally: var(--to); }
+        }
         .leftover {
             text-align: center; font-size: .92rem; color: """ + INK + """;
             margin: -.2rem 0 .7rem 0;
@@ -413,6 +445,25 @@ def show_cooking_screen():
             font-family: Georgia, serif; letter-spacing: .42em;
             font-size: .72rem; color: """ + PINK + """; margin-top: 1rem;
         }
+        /* Three wisps off the pot, each on its own clock so they never line up. */
+        .steam { position: relative; width: 230px; height: 70px; margin-bottom: -8px; }
+        .steam span {
+            position: absolute; bottom: 0;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: rgba(43,46,126,.20);
+            filter: blur(5px);
+            animation: rise 3.4s ease-in infinite;
+        }
+        .steam span:nth-child(1) { left: 34%; animation-delay: 0s;   }
+        .steam span:nth-child(2) { left: 50%; animation-delay: 1.1s; }
+        .steam span:nth-child(3) { left: 64%; animation-delay: 2.2s; }
+        @keyframes rise {
+            0%   { transform: translate(0, 10px) scale(.5); opacity: 0; }
+            18%  { opacity: .55; }
+            55%  { transform: translate(-11px, -30px) scale(1.5); opacity: .4; }
+            100% { transform: translate(9px, -66px) scale(2.3); opacity: 0; }
+        }
+
         .stage { position: relative; height: 2rem; width: 340px; margin-top: 2.6rem; }
         .line {
             position: absolute; inset: 0; text-align: center; opacity: 0;
@@ -432,6 +483,7 @@ def show_cooking_screen():
         </style>
 
         <div class="curtain">
+            <div class="steam"><span></span><span></span><span></span></div>
             """ + (
                 "<div class='plaque'><img src='" + (logo_source() or "") + "' "
                 "alt='Nonna Goes Crazy' style='width:230px;height:230px'></div>"
@@ -572,6 +624,11 @@ def cell(column, text, extra=""):
     column.markdown("<div class='td " + extra + "'>" + text + "</div>", unsafe_allow_html=True)
 
 
+def arrival(number):
+    """Which beat this row arrives on. Anything past the third shares the last."""
+    return " arrive-" + str(min(number, 3))
+
+
 def show_plan_screen():
     """Plan the day: what to charge, what to buy, and what the room will want."""
     show_header()
@@ -604,19 +661,20 @@ def show_menu_table():
     quantities = {}
     prices = {}
 
-    for dish in logic.MENU:
+    for number, dish in enumerate(logic.MENU, start=1):
         name = dish["name"]
+        beat = arrival(number)
         row = st.columns(widths)
 
         row[0].markdown(
-            "<div class='td name with-pic'>"
+            "<div class='td name with-pic" + beat + "'>"
             "<img class='dish-pic' src='" + dish_picture(dish["picture"]) + "' alt=''>"
             "<span class='names'>" + name
             + "<span class='ref'>reference " + euro(dish["price"]) + "</span></span></div>",
             unsafe_allow_html=True,
         )
-        cell(row[1], str(stock[name]), "num")
-        cell(row[2], euro(dish["cost"]), "num")
+        cell(row[1], str(stock[name]), "num" + beat)
+        cell(row[2], euro(dish["cost"]), "num" + beat)
 
         asking = row[3].number_input(
             name + " price",
@@ -631,7 +689,7 @@ def show_menu_table():
 
         # The rule, doing its work in front of you: this number moves as you type.
         wanted = logic.demand_for(dish, asking)
-        cell(row[4], "<b>" + str(wanted) + "</b>", "num")
+        cell(row[4], "<b>" + str(wanted) + "</b>", "num" + beat)
 
         # A real zero, not an empty box. An empty number_input has nothing to
         # count up from, so its - and + do nothing, and Streamlit shows a
@@ -644,7 +702,7 @@ def show_menu_table():
             key="qty-" + name + "-" + str(round_number),
             label_visibility="collapsed",
         )
-        cell(row[6], euro(quantities[name] * dish["cost"]), "num")
+        cell(row[6], euro(quantities[name] * dish["cost"]), "num" + beat)
 
     st.markdown(
         "<div class='rule-note'>" + logic.DEMAND_RULE + "</div>", unsafe_allow_html=True
@@ -691,6 +749,23 @@ def show_the_doors(quantities, prices, total, affordable):
     show_back_to_menu()
 
 
+def till_counting_up(day):
+    """The till, climbing from what it held before the service to what it holds now.
+
+    Only the euros move: a CSS counter cannot show a decimal point, so the
+    cents are written in beside it. If a browser will not animate a registered
+    property the number simply starts at its final value, which is still right.
+    """
+    after = day["cash_after"]
+    before = round(after - day["cash_delta"], 2)
+    cents = format(after, ".2f").split(".")[1]
+    return (
+        "<span class='tally run' style='--from:" + str(int(before))
+        + ";--to:" + str(int(after)) + ";--tally:" + str(int(after)) + "'>"
+        "\u20ac<i></i>." + cents + "</span>"
+    )
+
+
 def show_report_screen():
     """How the day went: sold, taken, spent and kept, dish by dish and in total.
 
@@ -705,7 +780,7 @@ def show_report_screen():
         + "<div class='closed'>DAY " + str(day["day"]) + " OF "
         + str(logic.TOTAL_DAYS) + " IS DONE</div>"
         "<div class='verdict'>+" + euro(day["cash_delta"]) + "</div>"
-        "<div class='ledger'><b>" + euro(day["cash_after"]) + "</b> in the till</div>",
+        "<div class='ledger'><b>" + till_counting_up(day) + "</b> in the till</div>",
         unsafe_allow_html=True,
     )
 
