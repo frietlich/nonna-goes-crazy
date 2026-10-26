@@ -158,6 +158,9 @@ def paint_the_room():
             font-size: 1.1rem; color: """ + INK + """;
         }
         .td.name { font-family: Georgia, serif; font-size: 1.42rem; }
+        /* The scoreboard splits the width in two, so its names run at the size
+           the column can actually hold. */
+        .td.name.plain { font-size: 1.04rem; }
         .td.name { flex-direction: column; align-items: flex-start; justify-content: center; }
         .ref {
             font-family: -apple-system, system-ui, sans-serif;
@@ -172,7 +175,10 @@ def paint_the_room():
             box-shadow: 0 6px 20px rgba(43,46,126,.28);
             image-rendering: auto;
         }
-        .st-key-menu-panel {
+        .st-key-menu-panel,
+        .st-key-report-panel,
+        .st-key-days-panel,
+        .st-key-sold-panel {
             background: rgba(255,252,245,.93);
             border: 1px solid rgba(43,46,126,.16);
             border-top: 3px solid """ + PINK + """;
@@ -180,6 +186,8 @@ def paint_the_room():
             padding: 1.2rem 1.7rem 1.4rem 1.7rem;
             box-shadow: 0 4px 18px rgba(43,46,126,.11);
         }
+        .st-key-days-panel .head,
+        .st-key-sold-panel .head { margin-top: .2rem; }
         .brand { display: flex; align-items: center; gap: 1.3rem; }
         .brand .plaque { line-height: 0; flex-shrink: 0; }
         .brand-title {
@@ -235,7 +243,7 @@ def paint_the_room():
         .tally { counter-reset: tally var(--tally); }
         .tally i { font-style: normal; }
         .tally i::after { content: counter(tally); }
-        .tally.run { animation: tally 1.4s cubic-bezier(.2,.8,.3,1) forwards; }
+        .tally.run { animation: tally 1.9s cubic-bezier(.15,.85,.25,1) forwards; }
         @keyframes tally {
             from { --tally: var(--from); }
             to   { --tally: var(--to); }
@@ -445,25 +453,6 @@ def show_cooking_screen():
             font-family: Georgia, serif; letter-spacing: .42em;
             font-size: .72rem; color: """ + PINK + """; margin-top: 1rem;
         }
-        /* Three wisps off the pot, each on its own clock so they never line up. */
-        .steam { position: relative; width: 230px; height: 70px; margin-bottom: -8px; }
-        .steam span {
-            position: absolute; bottom: 0;
-            width: 16px; height: 16px; border-radius: 50%;
-            background: rgba(43,46,126,.20);
-            filter: blur(5px);
-            animation: rise 3.4s ease-in infinite;
-        }
-        .steam span:nth-child(1) { left: 34%; animation-delay: 0s;   }
-        .steam span:nth-child(2) { left: 50%; animation-delay: 1.1s; }
-        .steam span:nth-child(3) { left: 64%; animation-delay: 2.2s; }
-        @keyframes rise {
-            0%   { transform: translate(0, 10px) scale(.5); opacity: 0; }
-            18%  { opacity: .55; }
-            55%  { transform: translate(-11px, -30px) scale(1.5); opacity: .4; }
-            100% { transform: translate(9px, -66px) scale(2.3); opacity: 0; }
-        }
-
         .stage { position: relative; height: 2rem; width: 340px; margin-top: 2.6rem; }
         .line {
             position: absolute; inset: 0; text-align: center; opacity: 0;
@@ -483,7 +472,6 @@ def show_cooking_screen():
         </style>
 
         <div class="curtain">
-            <div class="steam"><span></span><span></span><span></span></div>
             """ + (
                 "<div class='plaque'><img src='" + (logo_source() or "") + "' "
                 "alt='Nonna Goes Crazy' style='width:230px;height:230px'></div>"
@@ -749,21 +737,56 @@ def show_the_doors(quantities, prices, total, affordable):
     show_back_to_menu()
 
 
-def till_counting_up(day):
-    """The till, climbing from what it held before the service to what it holds now.
+def counting_up(amount, start=0.0):
+    """An amount that climbs to itself instead of simply appearing.
 
-    Only the euros move: a CSS counter cannot show a decimal point, so the
-    cents are written in beside it. If a browser will not animate a registered
-    property the number simply starts at its final value, which is still right.
+    Only the euros move: a CSS counter has no way to show a decimal point, so
+    the cents are written in beside them. If a browser will not animate a
+    registered property the number starts where it ends, which is still right.
     """
-    after = day["cash_after"]
-    before = round(after - day["cash_delta"], 2)
-    cents = format(after, ".2f").split(".")[1]
+    cents = format(amount, ".2f").split(".")[1]
     return (
-        "<span class='tally run' style='--from:" + str(int(before))
-        + ";--to:" + str(int(after)) + ";--tally:" + str(int(after)) + "'>"
+        "<span class='tally run' style='--from:" + str(int(start))
+        + ";--to:" + str(int(amount)) + ";--tally:" + str(int(amount)) + "'>"
         "\u20ac<i></i>." + cents + "</span>"
     )
+
+
+def show_report_table(day):
+    """What each dish did, and the four totals CT04 asks for."""
+    widths = [3.2, 1.1, 0.8, 0.9, 1.3, 1.3, 1.3]
+    titles = ["Dish", "Price", "Had", "Sold", "Revenue", "Cost of goods", "Profit"]
+    for column, title in zip(st.columns(widths), titles):
+        column.markdown(
+            "<div class='th" + ("" if title == "Dish" else " num") + "'>" + title + "</div>",
+            unsafe_allow_html=True,
+        )
+
+    for number, dish in enumerate(logic.MENU, start=1):
+        line = day["dishes"][dish["name"]]
+        beat = arrival(number)
+        row = st.columns(widths)
+        row[0].markdown(
+            "<div class='td name with-pic" + beat + "'>"
+            "<img class='dish-pic' src='" + dish_picture(dish["picture"]) + "' alt=''>"
+            "<span class='names'>" + dish["name"] + "</span></div>",
+            unsafe_allow_html=True,
+        )
+        cell(row[1], euro(line["price"]), "num" + beat)
+        cell(row[2], str(line["stock_before"]), "num" + beat)
+        cell(row[3], str(line["sold"]), "num" + beat)
+        cell(row[4], euro(line["revenue"]), "num" + beat)
+        cell(row[5], euro(line["cogs"]), "num" + beat)
+        cell(row[6], euro(line["profit"]), "num" + beat)
+
+    total = st.columns(widths)
+    cell(total[0], "<b>Total</b>", "name foot")
+    cell(total[1], "", "num foot")
+    cell(total[2], "", "num foot")
+    cell(total[3], "<b>" + str(day["sold"]) + "</b>", "num foot")
+    cell(total[4], "<b>" + euro(day["revenue"]) + "</b>", "num foot")
+    cell(total[5], "<b>" + euro(day["cogs"]) + "</b>", "num foot")
+    cell(total[6], "<b>" + euro(day["profit"]) + "</b>", "num foot")
 
 
 def show_report_screen():
@@ -779,44 +802,16 @@ def show_report_screen():
         sign_html(150)
         + "<div class='closed'>DAY " + str(day["day"]) + " OF "
         + str(logic.TOTAL_DAYS) + " IS DONE</div>"
-        "<div class='verdict'>+" + euro(day["cash_delta"]) + "</div>"
-        "<div class='ledger'><b>" + till_counting_up(day) + "</b> in the till</div>",
+        # The number of the moment, so it is the one that climbs.
+        "<div class='verdict'>+" + counting_up(day["cash_delta"]) + "</div>"
+        "<div class='ledger'><b>" + euro(day["cash_after"]) + "</b> in the till</div>",
         unsafe_allow_html=True,
     )
 
-    widths = [3.2, 1.1, 0.8, 0.9, 1.3, 1.3, 1.3]
-    titles = ["Dish", "Price", "Had", "Sold", "Revenue", "Cost of goods", "Profit"]
-    for column, title in zip(st.columns(widths), titles):
-        column.markdown(
-            "<div class='th" + ("" if title == "Dish" else " num") + "'>" + title + "</div>",
-            unsafe_allow_html=True,
-        )
+    with st.container(key="report-panel"):
+        show_report_table(day)
 
-    for dish in logic.MENU:
-        line = day["dishes"][dish["name"]]
-        row = st.columns(widths)
-        row[0].markdown(
-            "<div class='td name with-pic'>"
-            "<img class='dish-pic' src='" + dish_picture(dish["picture"]) + "' alt=''>"
-            "<span class='names'>" + dish["name"] + "</span></div>",
-            unsafe_allow_html=True,
-        )
-        cell(row[1], euro(line["price"]), "num")
-        cell(row[2], str(line["stock_before"]), "num")
-        cell(row[3], str(line["sold"]), "num")
-        cell(row[4], euro(line["revenue"]), "num")
-        cell(row[5], euro(line["cogs"]), "num")
-        cell(row[6], euro(line["profit"]), "num")
-
-    total = st.columns(widths)
-    cell(total[0], "<b>Total</b>", "name foot")
-    cell(total[1], "", "num foot")
-    cell(total[2], "", "num foot")
-    cell(total[3], "<b>" + str(day["sold"]) + "</b>", "num foot")
-    cell(total[4], "<b>" + euro(day["revenue"]) + "</b>", "num foot")
-    cell(total[5], "<b>" + euro(day["cogs"]) + "</b>", "num foot")
-    cell(total[6], "<b>" + euro(day["profit"]) + "</b>", "num foot")
-
+    left_over = logic.leftovers()
     left_over = logic.leftovers()
     if left_over:
         parts = [
@@ -880,7 +875,7 @@ def show_end_screen():
 
     left, right = st.columns([3, 2.4], gap="large")
 
-    with left:
+    with left, st.container(key="days-panel"):
         st.markdown("<div class='head'>The five days</div>", unsafe_allow_html=True)
         widths = [0.8, 1, 1.3, 1.3, 1.5]
         header = st.columns(widths)
@@ -897,9 +892,9 @@ def show_end_screen():
             cell(row[3], euro(day["profit"]), "num")
             cell(row[4], euro(day["cash_after"]), "num")
 
-    with right:
+    with right, st.container(key="sold-panel"):
         st.markdown("<div class='head'>What sold</div>", unsafe_allow_html=True)
-        widths = [2.4, 1, 1.4, 1.4]
+        widths = [3.3, 0.85, 1.2, 1.2]
         header = st.columns(widths)
         for column, title in zip(header, ["Dish", "Sold", "Revenue", "Profit"]):
             column.markdown(
@@ -909,13 +904,13 @@ def show_end_screen():
         for dish in logic.MENU:
             line = result["dishes"][dish["name"]]
             row = st.columns(widths)
-            cell(row[0], dish["name"], "name")
+            cell(row[0], dish["name"], "name plain")
             cell(row[1], str(line["sold"]), "num")
             cell(row[2], euro(line["revenue"]), "num")
             cell(row[3], euro(line["profit"]), "num")
 
         total = st.columns(widths)
-        cell(total[0], "<b>Total</b>", "name foot")
+        cell(total[0], "<b>Total</b>", "name plain foot")
         cell(total[1], "<b>" + str(result["sold"]) + "</b>", "num foot")
         cell(total[2], "<b>" + euro(result["revenue"]) + "</b>", "num foot")
         cell(total[3], "<b>" + euro(result["profit"]) + "</b>", "num foot")
