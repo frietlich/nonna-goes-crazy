@@ -528,7 +528,7 @@ def show_header():
     sign.markdown(
         ("<div class='plaque' style='text-align:left'>"
          "<img src='" + source + "' alt='Nonna Goes Crazy' "
-         "style='width:86px;height:86px'></div>")
+         "style='width:124px;height:124px'></div>")
         if source else
         ("<div class='topsign'>NONNA GOES CRAZY"
          "<small>PASTA FRESCA ITALIANA</small></div>"),
