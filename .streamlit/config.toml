@@ -1,0 +1,10 @@
+# The look of Nonna Goes Crazy: cream tiles, ink blue lettering, a pink accent.
+[theme]
+base = "light"
+primaryColor = "#D7446B"
+backgroundColor = "#F6EEDC"
+secondaryBackgroundColor = "#EFE3C8"
+textColor = "#2B2E7E"
+
+[server]
+headless = true
