@@ -5,13 +5,18 @@ saved game: they have to be the same on every machine, and the database file
 never leaves the laptop it was made on.
 """
 
+from decimal import Decimal, ROUND_HALF_UP
+
 import db
 
 # The menu. Fixed, and the same everywhere. See docs/product-brief.md.
 MENU = [
-    {"name": "Iconic Pomodoro", "cost": 7.00, "price": 11.90},
-    {"name": "Drunken Arrabbiata", "cost": 9.00, "price": 12.90},
-    {"name": "Carbobora", "cost": 11.00, "price": 14.00},
+    {"name": "Iconic Pomodoro", "cost": 7.00, "price": 11.90,
+     "picture": "iconic-pomodoro.png"},
+    {"name": "Drunken Arrabbiata", "cost": 9.00, "price": 12.90,
+     "picture": "drunken-arrabbiata.png"},
+    {"name": "Carbobora", "cost": 11.00, "price": 14.00,
+     "picture": "carbobora.png"},
 ]
 
 STARTING_CASH = 100.00
@@ -19,16 +24,28 @@ TOTAL_DAYS = 5
 
 KITCHEN_IS_EMPTY = "The kitchen is empty. Order some ingredients first."
 RUN_IS_OVER = "Five days are done. The kitchen is closed."
+CANNOT_AFFORD = "That order costs more than the till holds."
+BAD_PRICE = "Every price has to be more than zero."
+
+# The demand rule in words, for the screen to show (CT03).
+DEMAND_RULE = (
+    "At or below the reference price people want 10 portions \u00b7 "
+    "up to twice it, 5 \u00b7 above that, none."
+)
 
 
 def money(amount):
-    """Round to the cent (CT R3).
+    """Round to the cent, the way money is rounded: half goes up (CT R3).
 
     Every money result goes through here. Rounding once at the end would not be
     enough: plain floating point drifts as the days add up, and cash would show
     135.39999999999998 on day three.
+
+    Python's own round() rounds a half to the nearest even number, so 2.675
+    would become 2.67. Nobody hands back 2.67 for two euros sixty-seven and a
+    half, so Decimal does it properly instead.
     """
-    return round(amount, 2)
+    return float(Decimal(str(amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 def dish_names():
@@ -46,7 +63,7 @@ def find_dish(name):
 
 def start_up():
     """Make sure there is a game to play. Safe to call on every page load."""
-    db.set_up(dish_names(), STARTING_CASH)
+    db.set_up({dish["name"]: dish["price"] for dish in MENU}, STARTING_CASH)
 
 
 # ---------------------------------------------------------------- reading
@@ -67,6 +84,29 @@ def history():
     return db.get_history()
 
 
+def current_prices():
+    """What the owner is charging today, dish by dish.
+
+    A new run opens at the reference price and the owner moves it from there.
+    Yesterday's price stays until it is changed: it was chosen on purpose, and
+    retyping it every morning would be busywork.
+    """
+    return db.get_prices()
+
+
+def set_prices(prices):
+    """Store the chosen selling prices. Every one has to be above zero (A2).
+
+    Returns False and writes nothing when any price is wrong, so a bad entry
+    cannot leave half the menu changed.
+    """
+    for price in prices.values():
+        if price is None or price <= 0:
+            return False
+    db.save_prices({name: money(price) for name, price in prices.items()})
+    return True
+
+
 def kitchen_is_empty():
     """True when there is not a single portion of anything."""
     return sum(current_stock().values()) == 0
@@ -75,6 +115,39 @@ def kitchen_is_empty():
 def run_is_over():
     """True once the fifth day has been served. Buying and trading stop (CT05)."""
     return current_day() > TOTAL_DAYS
+
+
+def is_bankrupt():
+    """Nothing in the kitchen, and not enough left to buy even the cheapest dish.
+
+    Without this the run would sit on the same day for ever: opening is refused
+    because the kitchen is empty, shopping is refused because the till is
+    short, and the scoreboard -- with it the only way to start again -- would
+    never be reached.
+    """
+    if run_is_over():
+        return False
+    cheapest = min(dish["cost"] for dish in MENU)
+    return kitchen_is_empty() and current_cash() < cheapest
+
+
+def run_has_started():
+    """True once anything has happened: a day played, food bought, money spent.
+
+    A brand new run has none of those, so the menu can offer "start" rather
+    than "continue" and never ask to confirm deleting nothing.
+    """
+    return (
+        current_day() > 1
+        or not kitchen_is_empty()
+        or current_cash() != STARTING_CASH
+        or len(history()) > 0
+    )
+
+
+def run_has_ended():
+    """True when there is nothing left to play: five days served, or broke."""
+    return run_is_over() or is_bankrupt()
 
 
 def stock_value():
@@ -156,6 +229,8 @@ def final_result():
         "cash": cash,
         "stock_value": left,
         "leftovers": leftovers(),
+        "bankrupt": is_bankrupt(),
+        "days_played": current_day() - 1,
         "gain": money(cash + left - STARTING_CASH),
     }
 
@@ -206,6 +281,31 @@ def place_order(quantities):
 
 # ---------------------------------------------------------------- trading
 
+def buy_and_open(quantities, prices=None):
+    """Set the prices, buy what the owner typed, then serve the day (CT02-CT04).
+
+    One handle instead of three: pricing, ordering and opening were never
+    separate decisions. Whatever is bought here is in the kitchen for this very
+    day, and sold at the price set here.
+
+    Nothing happens by halves. A price that is not allowed or an order that
+    cannot be paid for stops everything, and not a cent moves -- no stock
+    bought for a day that then never opens.
+    """
+    if run_is_over():
+        return {"ok": False, "error": RUN_IS_OVER}
+
+    if prices is not None and not set_prices(prices):
+        return {"ok": False, "error": BAD_PRICE}
+
+    if order_total(quantities) > 0:
+        if not can_afford(quantities):
+            return {"ok": False, "error": CANNOT_AFFORD}
+        place_order(quantities)
+
+    return open_the_restaurant()
+
+
 def demand_for(dish, price):
     """How many portions people want at this price (CT R1). No randomness.
 
@@ -233,18 +333,22 @@ def open_the_restaurant():
 
     day = current_day()
     stock = current_stock()
+    prices = current_prices()
     lines = {}
     revenue_total = 0.0
+    cogs_total = 0.0
+    sold_total = 0
 
     for dish in MENU:
         name = dish["name"]
-        price = dish["price"]          # CT03 is out of scope: always the reference
+        price = prices[name]           # what the owner is charging (CT03)
         stock_before = stock[name]
         sold = min(demand_for(dish, price), stock_before)
         revenue = money(sold * price)
         cogs = money(sold * dish["cost"])
 
         lines[name] = {
+            "price": price,
             "stock_before": stock_before,
             "sold": sold,
             "revenue": revenue,
@@ -254,6 +358,8 @@ def open_the_restaurant():
         }
         stock[name] = stock_before - sold
         revenue_total = money(revenue_total + revenue)
+        cogs_total = money(cogs_total + cogs)
+        sold_total = sold_total + sold
 
     cash_after = money(current_cash() + revenue_total)
     db.save_day(day, lines, cash_after, revenue_total, stock)
@@ -262,6 +368,11 @@ def open_the_restaurant():
         "ok": True,
         "day": day,
         "dishes": lines,
+        # CT04 asks for the day in total as well as dish by dish.
+        "sold": sold_total,
+        "revenue": revenue_total,
+        "cogs": cogs_total,
+        "profit": money(revenue_total - cogs_total),
         "cash_after": cash_after,
         "cash_delta": revenue_total,
     }

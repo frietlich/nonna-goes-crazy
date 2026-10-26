@@ -40,3 +40,45 @@ def test_every_cash_figure_has_at_most_two_decimals(fresh_run):
         logic.open_the_restaurant()
         cash = logic.current_cash()
         assert cash == round(cash, 2), f"ragged cash after trading on day {day + 1}"
+
+
+def test_cash_never_goes_negative(fresh_run):
+    """CT R3. The till is the limit, and it is checked in the logic.
+
+    The screen greys the button out, but the rule cannot live only there:
+    a call that goes past the screen has to be refused just the same.
+    """
+    assert logic.place_order({POMODORO: 20}) is None       # 140.00
+    assert logic.current_cash() == 100.00
+
+    assert logic.place_order({POMODORO: 15}) is None       # 105.00
+    assert logic.current_cash() == 100.00
+
+    assert logic.place_order({POMODORO: 14}) == 98.00      # fits, just
+    assert logic.current_cash() == 2.00
+
+    refused = logic.buy_and_open({POMODORO: 10000})
+    assert refused["error"] == logic.CANNOT_AFFORD
+    assert logic.current_cash() == 2.00
+
+
+def test_a_trading_day_can_only_add_to_the_till(fresh_run):
+    """Selling brings money in; there are no running costs in this release."""
+    logic.place_order({POMODORO: 10})
+    before = logic.current_cash()
+
+    logic.open_the_restaurant()
+
+    assert logic.current_cash() > before
+
+
+def test_stock_never_goes_negative_either(fresh_run):
+    """CT R3 names stock next to cash."""
+    logic.buy_and_open({POMODORO: 3})               # demand 10, only 3 to sell
+    assert logic.current_stock()[POMODORO] == 0
+
+    logic.place_order({ARRABBIATA: 1})
+    logic.open_the_restaurant()                     # Pomodoro has nothing left
+
+    for portions in logic.current_stock().values():
+        assert portions >= 0
