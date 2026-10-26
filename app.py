@@ -234,20 +234,6 @@ def paint_the_room():
         }
         .ledger b { color: """ + PINK + """; }
 
-        /* CSS cannot count on its own; a registered property can be animated
-           and read back by a counter. The euros climb, the cents stay put --
-           counter() has no way to show a decimal. */
-        @property --tally {
-            syntax: "<integer>"; initial-value: 0; inherits: false;
-        }
-        .tally { counter-reset: tally var(--tally); }
-        .tally i { font-style: normal; }
-        .tally i::after { content: counter(tally); }
-        .tally.run { animation: tally 1.9s cubic-bezier(.15,.85,.25,1) forwards; }
-        @keyframes tally {
-            from { --tally: var(--from); }
-            to   { --tally: var(--to); }
-        }
         .leftover {
             text-align: center; font-size: .92rem; color: """ + INK + """;
             margin: -.2rem 0 .7rem 0;
@@ -737,21 +723,6 @@ def show_the_doors(quantities, prices, total, affordable):
     show_back_to_menu()
 
 
-def counting_up(amount, start=0.0):
-    """An amount that climbs to itself instead of simply appearing.
-
-    Only the euros move: a CSS counter has no way to show a decimal point, so
-    the cents are written in beside them. If a browser will not animate a
-    registered property the number starts where it ends, which is still right.
-    """
-    cents = format(amount, ".2f").split(".")[1]
-    return (
-        "<span class='tally run' style='--from:" + str(int(start))
-        + ";--to:" + str(int(amount)) + ";--tally:" + str(int(amount)) + "'>"
-        "\u20ac<i></i>." + cents + "</span>"
-    )
-
-
 def show_report_table(day):
     """What each dish did, and the four totals CT04 asks for."""
     widths = [3.2, 1.1, 0.8, 0.9, 1.3, 1.3, 1.3]
@@ -802,8 +773,7 @@ def show_report_screen():
         sign_html(150)
         + "<div class='closed'>DAY " + str(day["day"]) + " OF "
         + str(logic.TOTAL_DAYS) + " IS DONE</div>"
-        # The number of the moment, so it is the one that climbs.
-        "<div class='verdict'>+" + counting_up(day["cash_delta"]) + "</div>"
+        "<div class='verdict'>+" + euro(day["cash_delta"]) + "</div>"
         "<div class='ledger'><b>" + euro(day["cash_after"]) + "</b> in the till</div>",
         unsafe_allow_html=True,
     )
