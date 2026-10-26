@@ -18,6 +18,13 @@ PINK = "#D7446B"      # the accent
 CREAM = "#F6EEDC"     # the wall behind the tiles
 ALARM = "#A3182B"     # for things that went wrong; pink is for things you press
 
+# The wall behind everything: brick, laid in a bond, with a joint and a
+# little light on the top edge. Drawn rather than guessed at with
+# gradients, which could only ever manage a chessboard.
+TILES = (
+    'url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22120%22%20height%3D%2260%22%20viewBox%3D%220%200%20120%2060%22%3E%3Crect%20width%3D%22120%22%20height%3D%2260%22%20fill%3D%22%23F6EEDC%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2260%22%20height%3D%2230%22%20fill%3D%22%232B2E7E%22%20opacity%3D%220.022%22%2F%3E%3Crect%20x%3D%2260%22%20y%3D%2230%22%20width%3D%2260%22%20height%3D%2230%22%20fill%3D%22%232B2E7E%22%20opacity%3D%220.030%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%2230%22%20width%3D%2230%22%20height%3D%2230%22%20fill%3D%22%232B2E7E%22%20opacity%3D%220.012%22%2F%3E%3Cg%20stroke%3D%22%232B2E7E%22%20stroke-opacity%3D%220.13%22%20stroke-width%3D%222%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M0%2030%20H120%20M0%2060%20H120%22%2F%3E%3Cpath%20d%3D%22M60%200%20V30%22%2F%3E%3Cpath%20d%3D%22M30%2030%20V60%20M90%2030%20V60%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23FFFFFF%22%20stroke-opacity%3D%220.5%22%20stroke-width%3D%221%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M0%2031.5%20H120%20M0%201.5%20H120%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E")'
+)
+
 # How long the kitchen takes. Long enough to feel like a service, short enough
 # that nobody goes and makes a coffee.
 COOKING_SECONDS = 6.0
@@ -36,13 +43,8 @@ def paint_the_room():
         <style>
         .stApp {
             background-color: """ + CREAM + """;
-            background-image:
-                linear-gradient(45deg, rgba(43,46,126,.045) 25%, transparent 25%,
-                                transparent 75%, rgba(43,46,126,.045) 75%),
-                linear-gradient(45deg, rgba(43,46,126,.045) 25%, transparent 25%,
-                                transparent 75%, rgba(43,46,126,.045) 75%);
-            background-size: 54px 54px;
-            background-position: 0 0, 27px 27px;
+            background-image: """ + TILES + """;
+            background-size: 120px 60px;
         }
         h1, h2, h3 { color: """ + INK + """ !important; letter-spacing: .02em; }
         .stApp, .stApp p, .stApp label, .stApp td, .stApp th { color: """ + INK + """; }
@@ -123,6 +125,10 @@ def paint_the_room():
         /* Exactly the height of a number box, or the row sits 7px out of line. */
         .td.name.with-pic {
             height: 40px; flex-direction: row; align-items: center;
+            /* .td.name centres on the main axis, which is what you want in a
+               column. Turning the row sideways made that centre horizontally,
+               so each picture started wherever its name left room. */
+            justify-content: flex-start;
         }
         .td.name.with-pic .names {
             display: flex; flex-direction: column; justify-content: center;
@@ -301,13 +307,8 @@ def show_cooking_screen():
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
             background-color: """ + CREAM + """;
-            background-image:
-                linear-gradient(45deg, rgba(43,46,126,.045) 25%, transparent 25%,
-                                transparent 75%, rgba(43,46,126,.045) 75%),
-                linear-gradient(45deg, rgba(43,46,126,.045) 25%, transparent 25%,
-                                transparent 75%, rgba(43,46,126,.045) 75%);
-            background-size: 54px 54px;
-            background-position: 0 0, 27px 27px;
+            background-image: """ + TILES + """;
+            background-size: 120px 60px;
         }
         .curtain .big {
             font-family: Georgia, "Times New Roman", serif; font-weight: 700;
