@@ -20,6 +20,13 @@ TOTAL_DAYS = 5
 KITCHEN_IS_EMPTY = "The kitchen is empty. Order some ingredients first."
 RUN_IS_OVER = "Five days are done. The kitchen is closed."
 CANNOT_AFFORD = "That order costs more than the till holds."
+BAD_PRICE = "Every price has to be more than zero."
+
+# The demand rule in words, for the screen to show (CT03).
+DEMAND_RULE = (
+    "At or below the reference price people want 10 portions \u00b7 "
+    "up to twice it, 5 \u00b7 above that, none."
+)
 
 
 def money(amount):
@@ -47,7 +54,7 @@ def find_dish(name):
 
 def start_up():
     """Make sure there is a game to play. Safe to call on every page load."""
-    db.set_up(dish_names(), STARTING_CASH)
+    db.set_up({dish["name"]: dish["price"] for dish in MENU}, STARTING_CASH)
 
 
 # ---------------------------------------------------------------- reading
@@ -66,6 +73,29 @@ def current_stock():
 
 def history():
     return db.get_history()
+
+
+def current_prices():
+    """What the owner is charging today, dish by dish.
+
+    A new run opens at the reference price and the owner moves it from there.
+    Yesterday's price stays until it is changed: it was chosen on purpose, and
+    retyping it every morning would be busywork.
+    """
+    return db.get_prices()
+
+
+def set_prices(prices):
+    """Store the chosen selling prices. Every one has to be above zero (A2).
+
+    Returns False and writes nothing when any price is wrong, so a bad entry
+    cannot leave half the menu changed.
+    """
+    for price in prices.values():
+        if price is None or price <= 0:
+            return False
+    db.save_prices({name: money(price) for name, price in prices.items()})
+    return True
 
 
 def kitchen_is_empty():
@@ -207,18 +237,22 @@ def place_order(quantities):
 
 # ---------------------------------------------------------------- trading
 
-def buy_and_open(quantities):
-    """Buy what the owner typed, then serve the day (CT02, CT04).
+def buy_and_open(quantities, prices=None):
+    """Set the prices, buy what the owner typed, then serve the day (CT02-CT04).
 
-    One handle instead of two: ordering and opening were never separate
-    decisions. Whatever is bought here is in the kitchen for this very day.
+    One handle instead of three: pricing, ordering and opening were never
+    separate decisions. Whatever is bought here is in the kitchen for this very
+    day, and sold at the price set here.
 
-    Nothing happens by halves. If the order cannot be paid for, the day is not
-    served either and not a cent moves -- no stock bought for a day that then
-    never opens.
+    Nothing happens by halves. A price that is not allowed or an order that
+    cannot be paid for stops everything, and not a cent moves -- no stock
+    bought for a day that then never opens.
     """
     if run_is_over():
         return {"ok": False, "error": RUN_IS_OVER}
+
+    if prices is not None and not set_prices(prices):
+        return {"ok": False, "error": BAD_PRICE}
 
     if order_total(quantities) > 0:
         if not can_afford(quantities):
@@ -255,18 +289,20 @@ def open_the_restaurant():
 
     day = current_day()
     stock = current_stock()
+    prices = current_prices()
     lines = {}
     revenue_total = 0.0
 
     for dish in MENU:
         name = dish["name"]
-        price = dish["price"]          # CT03 is out of scope: always the reference
+        price = prices[name]           # what the owner is charging (CT03)
         stock_before = stock[name]
         sold = min(demand_for(dish, price), stock_before)
         revenue = money(sold * price)
         cogs = money(sold * dish["cost"])
 
         lines[name] = {
+            "price": price,
             "stock_before": stock_before,
             "sold": sold,
             "revenue": revenue,

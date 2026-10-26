@@ -120,6 +120,17 @@ def paint_the_room():
             font-size: 1.05rem; color: """ + INK + """;
         }
         .td.name { font-family: Georgia, serif; font-size: 1.15rem; }
+        .td.name { flex-direction: column; align-items: flex-start; justify-content: center; }
+        .ref {
+            font-family: -apple-system, system-ui, sans-serif;
+            font-size: .62rem; letter-spacing: .1em; text-transform: uppercase;
+            color: """ + PINK + """; opacity: .85; margin-top: .1rem;
+        }
+        .rule-note {
+            font-size: .82rem; color: """ + INK + """; opacity: .8;
+            border-left: 3px solid """ + PINK + """; padding: .35rem .7rem;
+            margin: 1rem 0 .2rem 0;
+        }
         .td, .th { white-space: nowrap; }
         .num { justify-content: flex-end; text-align: right; }
         .total { font-family: Georgia, serif; font-size: 1.5rem; color: """ + INK + """;
@@ -283,7 +294,7 @@ def show_cooking_screen():
 
     time.sleep(COOKING_SECONDS)
 
-    st.session_state["last_day"] = st.session_state.pop("cooking")
+    st.session_state["report"] = st.session_state.pop("cooking")
     fresh_boxes()
     st.rerun()
 
@@ -340,13 +351,15 @@ def cell(column, text, extra=""):
     column.markdown("<div class='td " + extra + "'>" + text + "</div>", unsafe_allow_html=True)
 
 
-def show_menu_and_order():
-    """One row per dish: what is in the kitchen, what it costs, and how many to buy."""
+def show_plan_screen():
+    """Plan the day: what to charge, what to buy, and what the room will want."""
+    show_header()
     st.markdown("<div class='head'>Tonight&rsquo;s menu</div>", unsafe_allow_html=True)
 
-    widths = [2.9, 0.9, 1.15, 1.15, 1.45, 1.25]
+    widths = [2.9, 0.85, 0.95, 1.5, 1.05, 1.35, 1.15]
+    titles = ["Dish", "Stock", "Cost", "Your price", "Demand", "Order", "Spend"]
     header = st.columns(widths)
-    for column, title in zip(header, ["Dish", "Stock", "Buy", "Sell", "Order", "Cost"]):
+    for column, title in zip(header, titles):
         column.markdown(
             "<div class='th" + ("" if title == "Dish" else " num") + "'>" + title + "</div>",
             unsafe_allow_html=True,
@@ -354,17 +367,38 @@ def show_menu_and_order():
 
     round_number = st.session_state.get("round", 0)
     stock = logic.current_stock()
+    saved_prices = logic.current_prices()
     quantities = {}
+    prices = {}
 
     for dish in logic.MENU:
         name = dish["name"]
         row = st.columns(widths)
-        cell(row[0], name, "name")
+
+        row[0].markdown(
+            "<div class='td name'>" + name
+            + "<span class='ref'>reference " + euro(dish["price"]) + "</span></div>",
+            unsafe_allow_html=True,
+        )
         cell(row[1], str(stock[name]), "num")
         cell(row[2], euro(dish["cost"]), "num")
-        cell(row[3], euro(dish["price"]), "num")
-        # value=None leaves the box empty, so there is no zero to delete first.
-        typed = row[4].number_input(
+
+        asking = row[3].number_input(
+            name + " price",
+            min_value=0.01,
+            step=0.10,
+            value=float(saved_prices[name]),
+            format="%.2f",
+            key="price-" + name + "-" + str(round_number),
+            label_visibility="collapsed",
+        )
+        prices[name] = asking
+
+        # The rule, doing its work in front of you: this number moves as you type.
+        wanted = logic.demand_for(dish, asking)
+        cell(row[4], "<b>" + str(wanted) + "</b>", "num")
+
+        typed = row[5].number_input(
             name,
             min_value=0,
             step=1,
@@ -374,7 +408,11 @@ def show_menu_and_order():
             label_visibility="collapsed",
         )
         quantities[name] = typed if typed is not None else 0
-        cell(row[5], euro(quantities[name] * dish["cost"]), "num")
+        cell(row[6], euro(quantities[name] * dish["cost"]), "num")
+
+    st.markdown(
+        "<div class='rule-note'>" + logic.DEMAND_RULE + "</div>", unsafe_allow_html=True
+    )
 
     total = logic.order_total(quantities)
     cash = logic.current_cash()
@@ -388,23 +426,14 @@ def show_menu_and_order():
         unsafe_allow_html=True,
     )
 
-    # One handle, not two: buying and opening were never separate decisions.
-    # The label says what the click will cost, so no money leaves unannounced.
     label = (
         "Buy " + euro(total) + " and open the restaurant"
         if total > 0
         else "Open the restaurant"
     )
-    if st.button(
-        label,
-        disabled=not affordable,
-        type="primary",
-        use_container_width=True,
-    ):
-        result = logic.buy_and_open(quantities)
+    if st.button(label, disabled=not affordable, type="primary", use_container_width=True):
+        result = logic.buy_and_open(quantities, prices)
         if result["ok"]:
-            # The day is written. Hand over to the cooking screen, which is a
-            # page of its own -- see show_cooking_screen.
             st.session_state["cooking"] = result
             fresh_boxes()
             st.rerun()
@@ -418,57 +447,79 @@ def show_menu_and_order():
         )
 
 
-def show_last_day():
-    """What happened the last time the restaurant opened."""
-    if "last_day" not in st.session_state:
-        st.markdown("<div class='head'>Last service</div>", unsafe_allow_html=True)
-        st.markdown(
-            "<div class='quiet'>Nothing served yet.</div>", unsafe_allow_html=True
-        )
-        return
+def show_report_screen():
+    """How the day went, and how it compares with the ones before it."""
+    day = st.session_state["report"]
+    gain = day["cash_delta"]
 
-    day = st.session_state["last_day"]
     st.markdown(
-        "<div class='head'>Day " + str(day["day"]) + " &nbsp;&middot;&nbsp; "
-        "<span style='color:" + PINK + "'>+" + euro(day["cash_delta"]) + "</span></div>",
+        "<div class='topsign' style='text-align:center'>NONNA GOES CRAZY"
+        "<small>PASTA FRESCA ITALIANA</small></div>"
+        "<div class='closed'>DAY " + str(day["day"]) + " IS DONE</div>"
+        "<div class='verdict'>+" + euro(gain) + "</div>"
+        "<div class='ledger'><b>" + euro(day["cash_after"]) + "</b> in the till</div>",
         unsafe_allow_html=True,
     )
 
-    widths = [2.6, 1, 1, 1.2]
-    header = st.columns(widths)
-    for column, title in zip(header, ["Dish", "Had", "Sold", "Profit"]):
-        column.markdown(
-            "<div class='th" + ("" if title == "Dish" else " num") + "'>" + title + "</div>",
+    left, right = st.columns([3, 2.6], gap="large")
+
+    with left:
+        st.markdown("<div class='head'>Tonight</div>", unsafe_allow_html=True)
+        widths = [2.4, 1.1, 0.8, 0.8, 1.2]
+        for column, title in zip(
+            st.columns(widths), ["Dish", "Price", "Had", "Sold", "Profit"]
+        ):
+            column.markdown(
+                "<div class='th" + ("" if title == "Dish" else " num") + "'>" + title + "</div>",
+                unsafe_allow_html=True,
+            )
+        for dish in logic.MENU:
+            line = day["dishes"][dish["name"]]
+            row = st.columns(widths)
+            cell(row[0], dish["name"], "name")
+            cell(row[1], euro(line["price"]), "num")
+            cell(row[2], str(line["stock_before"]), "num")
+            cell(row[3], str(line["sold"]), "num")
+            cell(row[4], euro(line["profit"]), "num")
+
+    with right:
+        st.markdown("<div class='head'>Compared</div>", unsafe_allow_html=True)
+        widths = [0.7, 0.9, 1.2, 1.2, 1.3]
+        for column, title in zip(
+            st.columns(widths), ["Day", "Sold", "Revenue", "Profit", "Cash"]
+        ):
+            column.markdown(
+                "<div class='th" + ("" if title == "Day" else " num") + "'>" + title + "</div>",
+                unsafe_allow_html=True,
+            )
+        for past in logic.final_result()["days"]:
+            row = st.columns(widths)
+            cell(row[0], str(past["day"]))
+            cell(row[1], str(past["sold"]), "num")
+            cell(row[2], euro(past["revenue"]), "num")
+            cell(row[3], euro(past["profit"]), "num")
+            cell(row[4], euro(past["cash_after"]), "num")
+
+    left_over = logic.leftovers()
+    if left_over:
+        parts = [
+            str(item["portions"]) + " &times; " + item["name"] for item in left_over
+        ]
+        st.markdown(
+            "<div class='leftover'><span class='tag'>STAYED IN THE KITCHEN</span>"
+            + " &nbsp;&middot;&nbsp; ".join(parts)
+            + " &nbsp;&nbsp;&mdash;&nbsp;&nbsp; <b>" + euro(logic.stock_value())
+            + "</b>, and they keep</div>",
             unsafe_allow_html=True,
         )
-    for dish in logic.MENU:
-        line = day["dishes"][dish["name"]]
-        row = st.columns(widths)
-        cell(row[0], dish["name"], "name")
-        cell(row[1], str(line["stock_before"]), "num")
-        cell(row[2], str(line["sold"]), "num")
-        cell(row[3], euro(line["profit"]), "num")
 
-
-def show_history():
-    """Every completed day, newest first."""
-    past = logic.history()
-    if len(past) == 0:
-        return
-
-    st.markdown("<div class='head'>Days so far</div>", unsafe_allow_html=True)
-    widths = [1, 1.4, 1.4]
-    header = st.columns(widths)
-    for column, title in zip(header, ["Day", "Earned", "Cash after"]):
-        column.markdown(
-            "<div class='th" + ("" if title == "Day" else " num") + "'>" + title + "</div>",
-            unsafe_allow_html=True,
-        )
-    for day in reversed(past[-4:]):
-        row = st.columns(widths)
-        cell(row[0], str(day["day"]))
-        cell(row[1], euro(day["cash_delta"]), "num")
-        cell(row[2], euro(day["cash_after"]), "num")
+    st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
+    spacer_left, middle, spacer_right = st.columns([2, 2, 2])
+    if middle.button(
+        "Plan day " + str(logic.current_day()), type="primary", use_container_width=True
+    ):
+        st.session_state.pop("report", None)
+        st.rerun()
 
 
 def show_end_screen():
@@ -551,24 +602,13 @@ def show_end_screen():
     if middle.button("Back to start", type="primary", use_container_width=True):
         logic.start_new_run()
         st.session_state["playing"] = False
-        st.session_state.pop("last_day", None)
+        st.session_state.pop("report", None)
         fresh_boxes()
         st.rerun()
 
 
-def show_kitchen():
-    """The game, on one screen: the menu on the left, the books on the right."""
-    show_header()
-    left, right = st.columns([3, 2], gap="large")
-    with left:
-        show_menu_and_order()
-    with right:
-        show_last_day()
-        show_history()
-
-
 def main():
-    """Three screens: the sign over the door, the kitchen, and the service."""
+    """One screen at a time: the sign, the plan, the service, the report, the end."""
     paint_the_room()
 
     if "cooking" in st.session_state:
@@ -583,7 +623,11 @@ def main():
         show_end_screen()
         return
 
-    show_kitchen()
+    if "report" in st.session_state:
+        show_report_screen()
+        return
+
+    show_plan_screen()
 
 
 main()

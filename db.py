@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS run (
 
 CREATE TABLE IF NOT EXISTS stock (
     dish      TEXT    PRIMARY KEY,
-    portions  INTEGER NOT NULL
+    portions  INTEGER NOT NULL,
+    price     REAL    NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS history (
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS history_lines (
     cogs          REAL    NOT NULL,
     profit        REAL    NOT NULL,
     stock_after   INTEGER NOT NULL,
+    price         REAL    NOT NULL DEFAULT 0,
     PRIMARY KEY (day, dish)
 );
 """
@@ -68,19 +70,43 @@ def close():
         _connection = None
 
 
-def set_up(dishes, starting_cash):
-    """Create the tables, and the opening position if there is no game yet."""
+def add_missing_column(connection, table, column, definition):
+    """Add a column a database made by an earlier version does not have yet.
+
+    The database file lives on one laptop and is never in the repository, so a
+    game started before a column existed would otherwise crash on the next
+    start. CREATE TABLE IF NOT EXISTS does not reach an existing table.
+    """
+    present = [row["name"] for row in connection.execute("PRAGMA table_info(" + table + ")")]
+    if column not in present:
+        connection.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition)
+
+
+def set_up(opening_prices, starting_cash):
+    """Create the tables, and the opening position if there is no game yet.
+
+    opening_prices is {dish: reference price}: a new run starts by asking the
+    reference price for everything, and the owner changes it from there.
+    """
     connection = connect()
     connection.executescript(SCHEMA)
     with connection:
+        add_missing_column(connection, "stock", "price", "REAL NOT NULL DEFAULT 0")
+        add_missing_column(connection, "history_lines", "price", "REAL NOT NULL DEFAULT 0")
+
         connection.execute(
             "INSERT OR IGNORE INTO run (id, cash, day) VALUES (1, ?, 1)",
             (starting_cash,),
         )
-        for dish in dishes:
+        for dish, price in opening_prices.items():
             connection.execute(
-                "INSERT OR IGNORE INTO stock (dish, portions) VALUES (?, 0)",
-                (dish,),
+                "INSERT OR IGNORE INTO stock (dish, portions, price) VALUES (?, 0, ?)",
+                (dish, price),
+            )
+            # A database from before prices existed has 0.00 in the column.
+            connection.execute(
+                "UPDATE stock SET price = ? WHERE dish = ? AND price <= 0",
+                (price, dish),
             )
 
 
@@ -98,6 +124,22 @@ def get_stock():
     """Return {dish name: portions} for every dish on the menu."""
     rows = connect().execute("SELECT dish, portions FROM stock").fetchall()
     return {row["dish"]: row["portions"] for row in rows}
+
+
+def get_prices():
+    """Return {dish: the price the owner is charging today}."""
+    rows = connect().execute("SELECT dish, price FROM stock").fetchall()
+    return {row["dish"]: row["price"] for row in rows}
+
+
+def save_prices(prices):
+    """Write the chosen selling prices. Saved at once, like everything else."""
+    connection = connect()
+    with connection:
+        for dish, price in prices.items():
+            connection.execute(
+                "UPDATE stock SET price = ? WHERE dish = ?", (price, dish)
+            )
 
 
 def save_order(cash_after, portions_after):
@@ -125,8 +167,9 @@ def save_day(day, lines, cash_after, cash_delta, portions_after):
         for dish, line in lines.items():
             connection.execute(
                 """INSERT INTO history_lines
-                   (day, dish, stock_before, sold, revenue, cogs, profit, stock_after)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (day, dish, stock_before, sold, revenue, cogs, profit,
+                    stock_after, price)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     day,
                     dish,
@@ -136,6 +179,7 @@ def save_day(day, lines, cash_after, cash_delta, portions_after):
                     line["cogs"],
                     line["profit"],
                     line["stock_after"],
+                    line["price"],
                 ),
             )
         connection.execute(

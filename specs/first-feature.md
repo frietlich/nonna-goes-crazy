@@ -1,4 +1,4 @@
-# First feature — order ingredients, open for a day, come back to it
+# First feature — price it, stock it, open for a day, come back to it
 
 One workflow, clickable from start to finish. The smallest slice of **Nonna
 Goes Crazy** that still proves the app can take money off the owner, refuse an
@@ -46,12 +46,18 @@ total:
 ```
 Tonight's menu                    Day 1          EUR 100.00
 
-  DISH                 STOCK   BUY    SELL   ORDER    COST
-  Iconic Pomodoro          0   7.00  11.90   [   ]    0.00
-  Drunken Arrabbiata       0   9.00  12.90   [   ]    0.00
-  Carbobora                0  11.00  14.00   [ 1 ]   11.00
-                                           ------------------
-                                            Total    11.00
+  DISH              STOCK  COST  YOUR PRICE  DEMAND  ORDER   SPEND
+  Iconic Pomodoro       0  7.00  [ 11.90 ]      10   [   ]    0.00
+    reference 11.90
+  Drunken Arrabbiata    0  9.00  [ 19.00 ]       5   [   ]    0.00
+    reference 12.90
+  Carbobora             0 11.00  [ 30.00 ]       0   [ 1 ]   11.00
+    reference 14.00
+                                                   ---------------
+                                                    Total    11.00
+
+  At or below the reference price people want 10 portions
+  · up to twice it, 5 · above that, none.
 
       [   Buy EUR 11.00 and open the restaurant   ]
 ```
@@ -65,6 +71,22 @@ Tonight's menu                    Day 1          EUR 100.00
 
 When an order goes through, **cash goes down and stock goes up in the same
 step** — never one without the other (CT02).
+
+### Setting the price (CT03)
+
+Each dish has a price box next to it, starting at the reference price on a new
+run. **Yesterday's price stays until it is changed** — it was chosen on
+purpose, and retyping it every morning would be busywork. Prices are stored
+and survive a restart, which A5 names alongside cash, stock and history.
+
+Every price has to be **above zero** (A2). One bad entry stops the whole set,
+so the menu can never end up half changed.
+
+**The rule is shown by doing, not by a footnote.** A *Demand* column next to
+each price says how many portions the room will want at that price, and it
+moves as the price is typed: ask 24.00 for a dish whose reference is 11.90 and
+it drops to 0 while you watch. A line under the table says the rule in words
+as well, for the first glance.
 
 ### Opening for the day (CT04)
 
@@ -81,8 +103,8 @@ restaurant* and simply serves what is already in the kitchen.
 served either and not a cent moves. There is never stock bought for a day that
 then does not open.
 
-The selling price of every dish is its reference price; letting the owner set
-prices is CT03 and is out of scope here.
+Each dish sells at whatever the owner asked for it in the price box above
+(CT03), and the demand rule is applied against that price.
 
 Per dish:
 
@@ -105,9 +127,9 @@ history   +=  exactly one entry for this day                 (CT R5)
 
 Cash and stock never go negative (CT R3).
 
-Because prices stay at the reference price in this first feature, demand is
-always 10 for every dish. That is a consequence of leaving CT03 out, not an
-accident.
+Demand is decided by the price the owner asked, nothing else: there is no
+randomness in this release (CT R1). Charge the reference price and the room is
+full at 10; charge more than twice it and nobody comes.
 
 ### The end of the run (CT05)
 
@@ -170,10 +192,10 @@ and appears **once** (CT R5, A5).
 
 Deliberately left out of this task, to be built after it works:
 
-- Setting selling prices (CT03) — prices stay at the reference price, so
-  demand is always 10 and the demand rule stays invisible while playing.
 - Abandoning a run that is still going. Starting over is offered only once the
   five days are done, where there is nothing left to protect (CT01, A6).
+- Anything the brief puts out of scope itself: random events, upgrades,
+  competing businesses, running costs, spoilage, borrowing, stock returns.
 
 ## Done when
 
@@ -212,9 +234,9 @@ a test, except where noted.
 
 7. **Demand sits on the right side of every boundary.** For Iconic Pomodoro,
    with its EUR 11.90 reference price, prices of **11.90, 11.91, 23.80 and
-   23.81** give demand **10, 5, 5 and 0** (A2). *Logic test only* — with CT03
-   out of scope the app never charges anything but the reference price, so this
-   cannot be reached by clicking.
+   23.81** give demand **10, 5, 5 and 0** (A2). Typing each of them into the
+   price box moves the *Demand* column to that number before anything is
+   bought.
 
 8. **A restart changes nothing.** After check 1, stopping the process with
    Ctrl+C and starting it again shows **EUR 149.00 cash, 0 Pomodoro, day 2 and
@@ -227,7 +249,21 @@ a test, except where noted.
    counter stands at 6, **buying and opening are both refused**, and the
    scoreboard appears instead of the kitchen (CT05).
 
-10. **Leftover stock still counts.** Buying **14 Pomodoro** on the last day
+10. **The price decides the room.** On a fresh run, buying 10 Pomodoro and
+    asking **15.00** instead of the 11.90 reference sells **5, not 10**:
+    EUR 75.00 revenue, EUR 35.00 cost of goods sold, EUR 40.00 profit,
+    EUR 105.00 cash and **5 portions left** (CT R1, CT R2). Asking **24.00**,
+    above twice the reference, sells **nothing at all** and the food stays.
+
+11. **A price of zero or less is refused.** Nothing is written: the prices
+    stay as they were, no stock is bought and no day is served (A2). One wrong
+    price among three stops all three.
+
+12. **Yesterday's price is still there today.** A price set on day one is what
+    the next day opens with, until it is changed, and it survives a restart of
+    the process (A5).
+
+13. **Leftover stock still counts.** Buying **14 Pomodoro** on the last day
     sells 10 and leaves 4. Those 4 are worth **EUR 28.00** at purchase cost,
     the scoreboard names them, and they go into the result:
     final cash + 28.00 − 100.00 (CT R4).
